@@ -5,6 +5,7 @@ import (
 	"github.com/KShekhurin/blog-go/internal/database"
 	"github.com/KShekhurin/blog-go/internal/db"
 	"github.com/KShekhurin/blog-go/internal/handles"
+	"github.com/KShekhurin/blog-go/internal/middleware"
 	"github.com/KShekhurin/blog-go/internal/repositories"
 	"github.com/KShekhurin/blog-go/internal/services"
 
@@ -22,10 +23,11 @@ func CreateRouter(databaseConnect *db.Database, cfg *config.Config) *gin.Engine 
 
 	userHandler := handles.NewAuthHandler(userService, authService)
 
-	userGroup := router.Group("/api/v1")
+	v1 := router.Group("/api/v1")
+	v1.Use(middleware.ErrorMiddleware())
 	{
-		userGroup.POST("/register", userHandler.Register)
-		userGroup.POST("/login", userHandler.Login)
+		v1.POST("/register", userHandler.Register)
+		v1.POST("/login", userHandler.Login)
 	}
 
 	return router

@@ -46,11 +46,17 @@ func (h *AuthHandler) Login(ctx *gin.Context) {
 		return
 	}
 
-	token, err := h.authService.SignJWT(ctx.Request.Context(), &userLoginInfo)
+	user, err := h.authService.AuthenticateUser(ctx.Request.Context(), &userLoginInfo)
 	if err != nil {
 		ctx.Error(err)
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{"token": token})
+	token, err := h.authService.SignJWT(ctx.Request.Context(), user)
+	if err != nil {
+		ctx.Error(err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, token)
 }

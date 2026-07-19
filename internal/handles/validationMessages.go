@@ -10,22 +10,6 @@ import (
 	"github.com/go-playground/validator/v10"
 )
 
-type DetailBody struct {
-	Field   string `json:"field" binding:"required"`
-	Code    string `json:"code" binding:"required"`
-	Message string `json:"message,omitempty"`
-}
-
-type ValidationErrorMessage struct {
-	Error   string       `json:"error" binding:"required" default:"validation_failed"`
-	Details []DetailBody `json:"details" binding:"required"`
-}
-
-type GeneralErrorMessage struct {
-	Error   string `json:"error" binding:"required"`
-	Message string `json:"message,omitempty"`
-}
-
 func BuildBindErrorMessage(err error) any {
 	var syntaxErr *json.SyntaxError
 	var unmarshalTypeErr *json.UnmarshalTypeError
