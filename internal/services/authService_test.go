@@ -95,7 +95,7 @@ func TestAuthenticateUser(t *testing.T) {
 
 	t.Run("returns ErrorInvalidCredentials when user does not exist", func(t *testing.T) {
 		stub := &authUserRepositoryStub{
-			findErr: repositories.ErrorUserDoesNotExist,
+			findErr: repositories.ErrorDoesNotExist,
 		}
 		service := NewAuthService(stub, generateTestKey(t), jwt.SigningMethodEdDSA)
 

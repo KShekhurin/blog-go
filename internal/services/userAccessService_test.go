@@ -81,7 +81,7 @@ func TestCreateUser(t *testing.T) {
 
 	t.Run("returns ErrorUserExist on unique violation", func(t *testing.T) {
 		stub := &userRepositoryStub{
-			findErr: repositories.ErrorUserDoesNotExist,
+			findErr: repositories.ErrorDoesNotExist,
 			addErr:  &pgconn.PgError{Code: "23505"},
 		}
 		service := NewUserService(stub, argon2id.DefaultParams)
@@ -94,7 +94,7 @@ func TestCreateUser(t *testing.T) {
 
 	t.Run("returns created user on success", func(t *testing.T) {
 		stub := &userRepositoryStub{
-			findErr: repositories.ErrorUserDoesNotExist,
+			findErr: repositories.ErrorDoesNotExist,
 			addErr:  nil,
 		}
 		service := NewUserService(stub, argon2id.DefaultParams)

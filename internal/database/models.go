@@ -5,8 +5,74 @@
 package database
 
 import (
+	"database/sql/driver"
+	"fmt"
+
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+type MediaType string
+
+const (
+	MediaTypeImage    MediaType = "image"
+	MediaTypeVideo    MediaType = "video"
+	MediaTypeAudio    MediaType = "audio"
+	MediaTypeDocument MediaType = "document"
+)
+
+func (e *MediaType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = MediaType(s)
+	case string:
+		*e = MediaType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for MediaType: %T", src)
+	}
+	return nil
+}
+
+type NullMediaType struct {
+	MediaType MediaType
+	Valid     bool // Valid is true if MediaType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullMediaType) Scan(value interface{}) error {
+	if value == nil {
+		ns.MediaType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.MediaType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullMediaType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.MediaType), nil
+}
+
+type Post struct {
+	ID        uuid.UUID
+	AuthorID  uuid.UUID
+	ReplyTo   uuid.NullUUID
+	Content   string
+	CreatedAt pgtype.Timestamptz
+	DeletedAt pgtype.Timestamptz
+}
+
+type PostMedium struct {
+	ID           uuid.UUID
+	PostID       uuid.UUID
+	Type         MediaType
+	MimeType     string
+	Url          string
+	DisplayOrder int32
+}
 
 type SubscriberAuthor struct {
 	SubID  uuid.UUID

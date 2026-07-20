@@ -49,7 +49,7 @@ func (service *authService) AuthenticateUser(ctx context.Context, userInfo *webM
 
 	user, err := service.userRepo.FindUserByLoginOrEmail(ctx, userInfo.Login, userInfo.Email)
 	if err != nil {
-		if errors.Is(err, repositories.ErrorUserDoesNotExist) {
+		if errors.Is(err, repositories.ErrorDoesNotExist) {
 			return nil, ErrorInvalidCredentials
 		}
 		return nil, fmt.Errorf("find user by login or email failed: %w", err)

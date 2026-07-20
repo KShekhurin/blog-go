@@ -57,7 +57,7 @@ func (service *userService) CreateUser(ctx context.Context, userInfo *webModels.
 	if err == nil {
 		return nil, ErrorUserExist
 	}
-	if !errors.Is(err, repositories.ErrorUserDoesNotExist) {
+	if !errors.Is(err, repositories.ErrorDoesNotExist) {
 		return nil, fmt.Errorf("failed to check user existence: %w", err)
 	}
 

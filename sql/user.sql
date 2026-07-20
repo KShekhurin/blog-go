@@ -14,7 +14,7 @@ WHERE email = $1 LIMIT 1;
 SELECT * FROM users
 WHERE login = $1 OR email = $2 LIMIT 1;
 
--- name: Register :exec
+-- name: AddUser :exec
 INSERT INTO users (id, login, email, password_hash)
        VALUES ($1, $2, $3, $4);
 

@@ -11,20 +11,20 @@ import (
 	"github.com/google/uuid"
 )
 
-const createUser = `-- name: Register :exec
+const addUser = `-- name: AddUser :exec
 INSERT INTO users (id, login, email, password_hash)
        VALUES ($1, $2, $3, $4)
 `
 
-type CreateUserParams struct {
+type AddUserParams struct {
 	ID           uuid.UUID
 	Login        string
 	Email        string
 	PasswordHash string
 }
 
-func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) error {
-	_, err := q.db.Exec(ctx, createUser,
+func (q *Queries) AddUser(ctx context.Context, arg AddUserParams) error {
+	_, err := q.db.Exec(ctx, addUser,
 		arg.ID,
 		arg.Login,
 		arg.Email,

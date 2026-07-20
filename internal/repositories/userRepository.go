@@ -11,11 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-var (
-	ErrorUserDoesNotExist = errors.New("user does not exists")
-	ErrorUniqueViolation  = errors.New("unique violation")
-)
-
 func IsUniqueViolation(err error) bool {
 	if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok {
 		return pgErr.Code == "23505" // unique_violation
@@ -46,7 +41,7 @@ func (repo *userRepository) FindUserById(ctx context.Context, id uuid.UUID) (*da
 	user, err := repo.queries.FindUserById(ctx, id)
 
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, ErrorUserDoesNotExist
+		return nil, ErrorDoesNotExist
 	} else if err != nil {
 		return nil, fmt.Errorf("unexpected error: %w", err)
 	}
@@ -58,7 +53,7 @@ func (repo *userRepository) FindUserByLogin(ctx context.Context, login string) (
 	user, err := repo.queries.FindUserByLogin(ctx, login)
 
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, ErrorUserDoesNotExist
+		return nil, ErrorDoesNotExist
 	} else if err != nil {
 		return nil, fmt.Errorf("unexpected error: %w", err)
 	}
@@ -75,7 +70,7 @@ func (repo *userRepository) FindUserByLoginOrEmail(ctx context.Context, login st
 		})
 
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, ErrorUserDoesNotExist
+		return nil, ErrorDoesNotExist
 	} else if err != nil {
 		return nil, fmt.Errorf("unexpected error: %w", err)
 	}
@@ -84,9 +79,9 @@ func (repo *userRepository) FindUserByLoginOrEmail(ctx context.Context, login st
 }
 
 func (repo *userRepository) AddUser(ctx context.Context, user *database.User) error {
-	err := repo.queries.CreateUser(
+	err := repo.queries.AddUser(
 		ctx,
-		database.CreateUserParams{
+		database.AddUserParams{
 			ID:           user.ID,
 			Login:        user.Login,
 			Email:        user.Email,
