@@ -36,9 +36,9 @@ func messageForTag(err validator.FieldError) string {
 	case "email":
 		return fmt.Sprintf("%s must be a proper email address", err.Field())
 	case "required_if_no_email":
-		return fmt.Sprintf("%s is required if no login was presented", err.Field())
-	case "required_if_no_login":
 		return fmt.Sprintf("%s is required if no email was presented", err.Field())
+	case "required_if_no_login":
+		return fmt.Sprintf("%s is required if no login was presented", err.Field())
 	default:
 		return fmt.Sprintf("%s failed validation on %s", err.Field(), err.Tag())
 	}

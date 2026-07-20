@@ -39,7 +39,7 @@ func TestLoginValidation(t *testing.T) {
 			input: UserLoginInfo{Password: "password"},
 			wantFields: []string{
 				"login",
-				"password",
+				"email",
 			},
 		},
 	}

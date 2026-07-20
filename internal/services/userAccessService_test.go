@@ -2,12 +2,14 @@ package services
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/KShekhurin/blog-go/internal/database"
+	"github.com/KShekhurin/blog-go/internal/repositories"
 	"github.com/KShekhurin/blog-go/internal/webModels"
+	"github.com/alexedwards/argon2id"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -56,37 +58,57 @@ func TestCreateUser(t *testing.T) {
 			findUser: &database.User{},
 			findErr:  nil,
 		}
-		service := NewUserService(stub)
+		service := NewUserService(stub, argon2id.DefaultParams)
 
-		id, err := service.CreateUser(ctx, userInfo)
+		user, err := service.CreateUser(ctx, userInfo)
 
 		assert.ErrorIs(t, err, ErrorUserExist)
-		assert.Equal(t, uuid.UUID{}, id)
+		assert.Nil(t, user)
+	})
+
+	t.Run("returns wrapped error when existence check fails unexpectedly", func(t *testing.T) {
+		stub := &userRepositoryStub{
+			findErr: errors.New("connection refused"),
+		}
+		service := NewUserService(stub, argon2id.DefaultParams)
+
+		user, err := service.CreateUser(ctx, userInfo)
+
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "failed to check user existence")
+		assert.Nil(t, user)
 	})
 
 	t.Run("returns ErrorUserExist on unique violation", func(t *testing.T) {
 		stub := &userRepositoryStub{
-			findErr: pgx.ErrNoRows,
+			findErr: repositories.ErrorUserDoesNotExist,
 			addErr:  &pgconn.PgError{Code: "23505"},
 		}
-		service := NewUserService(stub)
+		service := NewUserService(stub, argon2id.DefaultParams)
 
-		id, err := service.CreateUser(ctx, userInfo)
+		user, err := service.CreateUser(ctx, userInfo)
 
 		assert.ErrorIs(t, err, ErrorUserExist)
-		assert.Equal(t, uuid.UUID{}, id)
+		assert.Nil(t, user)
 	})
 
-	t.Run("returns generated UUID on success", func(t *testing.T) {
+	t.Run("returns created user on success", func(t *testing.T) {
 		stub := &userRepositoryStub{
-			findErr: pgx.ErrNoRows,
+			findErr: repositories.ErrorUserDoesNotExist,
 			addErr:  nil,
 		}
-		service := NewUserService(stub)
+		service := NewUserService(stub, argon2id.DefaultParams)
 
-		id, err := service.CreateUser(ctx, userInfo)
+		user, err := service.CreateUser(ctx, userInfo)
 
 		require.NoError(t, err)
-		assert.NotEqual(t, uuid.UUID{}, id)
+		require.NotNil(t, user)
+		assert.NotEqual(t, uuid.Nil, user.ID)
+		assert.Equal(t, userInfo.Login, user.Login)
+		assert.Equal(t, userInfo.Email, user.Email)
+
+		match, err := argon2id.ComparePasswordAndHash(userInfo.Password, user.PasswordHash)
+		require.NoError(t, err)
+		assert.True(t, match)
 	})
 }

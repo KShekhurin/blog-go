@@ -28,14 +28,20 @@ func (h *AuthHandler) Register(ctx *gin.Context) {
 		return
 	}
 
-	id, err := h.userService.CreateUser(ctx.Request.Context(), &registerInfo)
+	user, err := h.userService.CreateUser(ctx.Request.Context(), &registerInfo)
 
 	if err != nil {
 		ctx.Error(err)
 		return
 	}
 
-	ctx.JSON(http.StatusCreated, gin.H{"id": id})
+	tokens, err := h.authService.SignJWT(ctx.Request.Context(), user)
+	if err != nil {
+		ctx.Error(err)
+		return
+	}
+
+	ctx.JSON(http.StatusCreated, tokens)
 }
 
 func (h *AuthHandler) Login(ctx *gin.Context) {
@@ -52,11 +58,11 @@ func (h *AuthHandler) Login(ctx *gin.Context) {
 		return
 	}
 
-	token, err := h.authService.SignJWT(ctx.Request.Context(), user)
+	tokens, err := h.authService.SignJWT(ctx.Request.Context(), user)
 	if err != nil {
 		ctx.Error(err)
 		return
 	}
 
-	ctx.JSON(http.StatusOK, token)
+	ctx.JSON(http.StatusOK, tokens)
 }

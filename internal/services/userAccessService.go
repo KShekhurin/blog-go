@@ -16,7 +16,7 @@ type UserService interface {
 	GetUserByLogin(ctx context.Context, login string)
 	GetUserByLoginOrEmail(ctx context.Context, login string, email string) (*database.User, error)
 	GetUserByUUID(ctx context.Context)
-	CreateUser(ctx context.Context, userInfo *webModels.UserRegisterInfo) (uuid.UUID, error)
+	CreateUser(ctx context.Context, userInfo *webModels.UserRegisterInfo) (*database.User, error)
 }
 
 var (
@@ -51,35 +51,35 @@ func (service *userService) GetUserByLoginOrEmail(ctx context.Context, login str
 	return usr, err
 }
 
-func (service *userService) CreateUser(ctx context.Context, userInfo *webModels.UserRegisterInfo) (uuid.UUID, error) {
+func (service *userService) CreateUser(ctx context.Context, userInfo *webModels.UserRegisterInfo) (*database.User, error) {
 	_, err := service.GetUserByLoginOrEmail(ctx, userInfo.Login, userInfo.Email)
 
 	if err == nil {
-		return uuid.UUID{}, ErrorUserExist
+		return nil, ErrorUserExist
 	}
 	if !errors.Is(err, repositories.ErrorUserDoesNotExist) {
-		return uuid.UUID{}, fmt.Errorf("failed to check user existence: %w", err)
+		return nil, fmt.Errorf("failed to check user existence: %w", err)
 	}
 
 	hash, err := argon2id.CreateHash(userInfo.Password, service.params)
 	if err != nil {
-		return uuid.UUID{}, fmt.Errorf("failed to hash password: %w", err)
+		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	newUuid := uuid.New()
-	err = service.userRepo.AddUser(ctx, &database.User{
-		ID:           newUuid,
+	newUser := &database.User{
+		ID:           uuid.New(),
 		Login:        userInfo.Login,
 		Email:        userInfo.Email,
 		PasswordHash: hash,
-	})
+	}
+	err = service.userRepo.AddUser(ctx, newUser)
 
 	if err != nil {
 		if repositories.IsUniqueViolation(err) {
-			return uuid.UUID{}, ErrorUserExist
+			return nil, ErrorUserExist
 		}
-		return uuid.UUID{}, fmt.Errorf("failed to create user: %w", err)
+		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 
-	return newUuid, nil
+	return newUser, nil
 }
