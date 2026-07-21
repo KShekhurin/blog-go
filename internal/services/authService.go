@@ -18,6 +18,17 @@ var (
 	ErrorInvalidCredentials = errors.New("invalid credentials")
 )
 
+const (
+	AuthType     = "auth"
+	RegisterType = "register"
+	IssuerName   = "blog"
+)
+
+type TokenClaims struct {
+	Type string `json:"type" binding:"required"`
+	jwt.RegisteredClaims
+}
+
 type TokenPair struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
@@ -71,11 +82,14 @@ func (service *authService) SignJWT(ctx context.Context, user *database.User) (*
 
 	access_token, err := jwt.NewWithClaims(
 		service.signMethod,
-		jwt.MapClaims{
-			"iat": iat.Unix(),
-			"exp": iat.Add(15 * time.Minute).Unix(),
-			"sub": user.ID,
-			"iss": "blog",
+		&TokenClaims{
+			Type: AuthType,
+			RegisteredClaims: jwt.RegisteredClaims{
+				Issuer:    IssuerName,
+				Subject:   user.ID.String(),
+				IssuedAt:  jwt.NewNumericDate(iat),
+				ExpiresAt: jwt.NewNumericDate(iat.Add(15 * time.Minute)),
+			},
 		}).SignedString(service.privateKey)
 	if err != nil {
 		return nil, fmt.Errorf("sign jwt failed: %w", err)
@@ -83,12 +97,14 @@ func (service *authService) SignJWT(ctx context.Context, user *database.User) (*
 
 	refresh_token, err := jwt.NewWithClaims(
 		service.signMethod,
-		jwt.MapClaims{
-			"iat":        iat.Unix(),
-			"exp":        iat.Add(24 * time.Hour * 30).Unix(),
-			"sub":        user.ID,
-			"iss":        "blog",
-			"is_refresh": true,
+		&TokenClaims{
+			Type: RegisterType,
+			RegisteredClaims: jwt.RegisteredClaims{
+				Issuer:    IssuerName,
+				Subject:   user.ID.String(),
+				IssuedAt:  jwt.NewNumericDate(iat),
+				ExpiresAt: jwt.NewNumericDate(iat.Add(30 * 24 * time.Hour)),
+			},
 		}).SignedString(service.privateKey)
 	if err != nil {
 		return nil, fmt.Errorf("sign jwt failed: %w", err)

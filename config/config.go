@@ -21,6 +21,7 @@ type Config struct {
 	JWTSecret   string
 
 	PrivateKey ed25519.PrivateKey
+	PublicKey  ed25519.PublicKey
 	SignMethod jwt.SigningMethod
 
 	HashParams *argon2id.Params
@@ -33,7 +34,7 @@ func getEnv(key, defaultValue string) string {
 	return defaultValue
 }
 
-func fromStringToPK(keyString string) (ed25519.PrivateKey, error) {
+func fromStringToPrivateKey(keyString string) (ed25519.PrivateKey, error) {
 	block, _ := pem.Decode([]byte(keyString))
 
 	if block == nil {
@@ -72,7 +73,7 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("failed to parse ARGON2_MEMORY: %s", err)
 	}
 
-	pk, err := fromStringToPK(cfg.JWTSecret)
+	private, err := fromStringToPrivateKey(cfg.JWTSecret)
 
 	if err != nil {
 		return nil, err
@@ -85,7 +86,8 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("JWT_SECRET is required")
 	}
 
-	cfg.PrivateKey = pk
+	cfg.PrivateKey = private
+	cfg.PublicKey = private.Public().(ed25519.PublicKey)
 	cfg.SignMethod = jwt.SigningMethodEdDSA
 
 	cfg.HashParams = &argon2id.Params{

@@ -99,7 +99,7 @@ func (r *postRepository) AddPost(ctx context.Context, post *webModels.Post) erro
 
 	if err != nil {
 		if IsUniqueViolation(err) {
-			return ErrorUniqueViolation
+			return fmt.Errorf("post violates unique rules: %w", ErrorUniqueViolation)
 		}
 		return fmt.Errorf("failed to add post: %w", err)
 	}

@@ -239,31 +239,34 @@ func TestSignJWT(t *testing.T) {
 			require.NotEmpty(t, tokenPair.RefreshToken)
 			assert.NotEqual(t, tokenPair.AccessToken, tokenPair.RefreshToken)
 
-			parse := func(tokenString string) jwt.MapClaims {
-				token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
+			parse := func(tokenString string) *TokenClaims {
+				claims := &TokenClaims{}
+				token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (any, error) {
 					assert.Equal(t, jwt.SigningMethodEdDSA.Alg(), token.Method.Alg())
 					return privateKey.Public(), nil
 				})
 				require.NoError(t, err)
 				require.True(t, token.Valid)
-				claims, ok := token.Claims.(jwt.MapClaims)
-				require.True(t, ok)
 				return claims
 			}
 
 			accessClaims := parse(tokenPair.AccessToken)
-			assert.Equal(t, user.ID.String(), accessClaims["sub"])
-			assert.Equal(t, "blog", accessClaims["iss"])
-			assert.Equal(t, float64(start.Unix()), accessClaims["iat"])
-			assert.Equal(t, float64(start.Add(15*time.Minute).Unix()), accessClaims["exp"])
-			assert.Nil(t, accessClaims["is_refresh"], "access token must not be marked as refresh")
+			assert.Equal(t, AuthType, accessClaims.Type)
+			assert.Equal(t, user.ID.String(), accessClaims.Subject)
+			assert.Equal(t, IssuerName, accessClaims.Issuer)
+			require.NotNil(t, accessClaims.IssuedAt)
+			assert.Equal(t, start.Unix(), accessClaims.IssuedAt.Unix())
+			require.NotNil(t, accessClaims.ExpiresAt)
+			assert.Equal(t, start.Add(15*time.Minute).Unix(), accessClaims.ExpiresAt.Unix())
 
 			refreshClaims := parse(tokenPair.RefreshToken)
-			assert.Equal(t, user.ID.String(), refreshClaims["sub"])
-			assert.Equal(t, "blog", refreshClaims["iss"])
-			assert.Equal(t, float64(start.Unix()), refreshClaims["iat"])
-			assert.Equal(t, float64(start.Add(24*time.Hour*30).Unix()), refreshClaims["exp"])
-			assert.Equal(t, true, refreshClaims["is_refresh"])
+			assert.Equal(t, RegisterType, refreshClaims.Type)
+			assert.Equal(t, user.ID.String(), refreshClaims.Subject)
+			assert.Equal(t, IssuerName, refreshClaims.Issuer)
+			require.NotNil(t, refreshClaims.IssuedAt)
+			assert.Equal(t, start.Unix(), refreshClaims.IssuedAt.Unix())
+			require.NotNil(t, refreshClaims.ExpiresAt)
+			assert.Equal(t, start.Add(24*time.Hour*30).Unix(), refreshClaims.ExpiresAt.Unix())
 		})
 	})
 
@@ -277,7 +280,7 @@ func TestSignJWT(t *testing.T) {
 			require.NoError(t, err)
 
 			parse := func(tokenString string) (*jwt.Token, error) {
-				return jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
+				return jwt.ParseWithClaims(tokenString, &TokenClaims{}, func(token *jwt.Token) (any, error) {
 					return privateKey.Public(), nil
 				})
 			}
