@@ -15,7 +15,7 @@ import (
 )
 
 func toPostParams(post *webModels.Post) database.AddPostParams {
-	replyTo := uuid.NullUUID{}
+	replyTo := uuid.NullUUID{Valid: false}
 
 	if post.ReplyTo != nil {
 		replyTo.UUID = *post.ReplyTo
@@ -62,6 +62,7 @@ func toAddPostAttachmentsParams(attachments []webModels.AttachedMedia) []databas
 type PostRepository interface {
 	AddPost(ctx context.Context, post *webModels.Post) error
 	GetPostById(ctx context.Context, id uuid.UUID) (*webModels.Post, error)
+	GetPostsByAuthorId(ctx context.Context, authorId uuid.UUID, cursor *webModels.PostPaginationCursor, limit int) ([]webModels.Post, error)
 }
 
 type postRepository struct {
@@ -107,21 +108,28 @@ func (r *postRepository) AddPost(ctx context.Context, post *webModels.Post) erro
 	return nil
 }
 
-func (r *postRepository) GetPostById(ctx context.Context, id uuid.UUID) (*webModels.Post, error) {
-	postData, err := r.query.FindPostById(ctx, id)
+func toAttachment(postMediaData *database.PostMedium) webModels.AttachedMedia {
+	return webModels.AttachedMedia{
+		Id:           postMediaData.ID,
+		PostId:       postMediaData.PostID,
+		Type:         string(postMediaData.Type),
+		MimeType:     postMediaData.MimeType,
+		Url:          postMediaData.Url,
+		DisplayOrder: int(postMediaData.DisplayOrder),
+	}
+}
 
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, fmt.Errorf("user was not found: %w", ErrorDoesNotExist)
-		}
-		return nil, fmt.Errorf("failed to find post by id: %w", err)
+func toAttachments(postsMediaData []database.PostMedium) []webModels.AttachedMedia {
+	attachments := make([]webModels.AttachedMedia, 0, len(postsMediaData))
+
+	for i := range postsMediaData {
+		attachments = append(attachments, toAttachment(&postsMediaData[i]))
 	}
 
-	postAttachments, err := r.query.FindLinkedPostMedia(ctx, id)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find liked post media: %w", err)
-	}
+	return attachments
+}
 
+func toPost(postData *database.Post, attachments []webModels.AttachedMedia) webModels.Post {
 	var replyTo *uuid.UUID = nil
 	if postData.ReplyTo.Valid {
 		replyTo = &postData.ReplyTo.UUID
@@ -132,20 +140,7 @@ func (r *postRepository) GetPostById(ctx context.Context, id uuid.UUID) (*webMod
 		deletedAt = &postData.DeletedAt.Time
 	}
 
-	attachments := make([]webModels.AttachedMedia, 0, len(postAttachments))
-
-	for _, postAttachmentData := range postAttachments {
-		attachments = append(attachments, webModels.AttachedMedia{
-			Id:           postAttachmentData.ID,
-			PostId:       postAttachmentData.PostID,
-			Type:         string(postAttachmentData.Type),
-			MimeType:     postAttachmentData.MimeType,
-			Url:          postAttachmentData.Url,
-			DisplayOrder: int(postAttachmentData.DisplayOrder),
-		})
-	}
-
-	return &webModels.Post{
+	return webModels.Post{
 		Id:        postData.ID,
 		AuthorId:  postData.AuthorID,
 		Content:   postData.Content,
@@ -153,5 +148,99 @@ func (r *postRepository) GetPostById(ctx context.Context, id uuid.UUID) (*webMod
 		CreatedAt: postData.CreatedAt.Time,
 		DeletedAt: deletedAt,
 		Attached:  attachments,
-	}, nil
+	}
+}
+
+func (r *postRepository) GetPostById(ctx context.Context, id uuid.UUID) (*webModels.Post, error) {
+	postData, err := r.query.FindPostById(ctx, id)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("post was not found: %w", ErrorDoesNotExist)
+		}
+		return nil, fmt.Errorf("failed to find post by id: %w", err)
+	}
+
+	postAttachments, err := r.query.FindLinkedPostMedia(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find linked post media: %w", err)
+	}
+
+	attachments := toAttachments(postAttachments)
+	post := toPost(&postData, attachments)
+	return &post, nil
+}
+
+func gatherPostIDs(postsData []database.Post) []uuid.UUID {
+	ids := make([]uuid.UUID, 0, len(postsData))
+
+	for _, postData := range postsData {
+		ids = append(ids, postData.ID)
+	}
+
+	return ids
+}
+
+func mapPostsMediaByPostId(postsMedia []database.PostMedium) map[uuid.UUID][]webModels.AttachedMedia {
+	uuidToAttachmentsSlice := make(map[uuid.UUID][]webModels.AttachedMedia)
+
+	for _, postMediaData := range postsMedia {
+		uuidToAttachmentsSlice[postMediaData.PostID] = append(
+			uuidToAttachmentsSlice[postMediaData.PostID],
+			toAttachment(&postMediaData))
+	}
+
+	return uuidToAttachmentsSlice
+}
+
+func (r *postRepository) GetPostsByAuthorId(ctx context.Context, authorId uuid.UUID, cursor *webModels.PostPaginationCursor, limit int) ([]webModels.Post, error) {
+	var postsData []database.Post
+	var err error
+
+	if cursor == nil {
+		postsData, err = r.query.FindUserPosts(ctx,
+			database.FindUserPostsParams{
+				AuthorID: authorId,
+				Limit:    int32(limit),
+			})
+	} else {
+		postsData, err = r.query.FindUserPostsWithCursor(ctx,
+			database.FindUserPostsWithCursorParams{
+				AuthorID: authorId,
+				Limit:    int32(limit),
+				LastCreatedAt: pgtype.Timestamptz{
+					Time:  cursor.LastTime,
+					Valid: true,
+				},
+				LastID: cursor.LastId,
+			})
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to find posts: %w", err)
+	}
+
+	if len(postsData) == 0 {
+		return []webModels.Post{}, nil
+	}
+
+	postIds := gatherPostIDs(postsData)
+
+	attachedMedia, err := r.query.FindPostsMedias(ctx, postIds)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to find attached posts' medias: %w", err)
+	}
+
+	uuidToAttachments := mapPostsMediaByPostId(attachedMedia)
+
+	posts := make([]webModels.Post, 0, len(postsData))
+
+	for _, postData := range postsData {
+		posts = append(
+			posts,
+			toPost(&postData, uuidToAttachments[postData.ID]))
+	}
+
+	return posts, nil
 }

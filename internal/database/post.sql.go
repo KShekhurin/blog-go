@@ -118,3 +118,121 @@ func (q *Queries) FindPostById(ctx context.Context, id uuid.UUID) (Post, error) 
 	)
 	return i, err
 }
+
+const findPostsMedias = `-- name: FindPostsMedias :many
+SELECT id, post_id, type, mime_type, url, display_order FROM post_media
+    WHERE post_id = ANY($1::uuid[])
+`
+
+func (q *Queries) FindPostsMedias(ctx context.Context, dollar_1 []uuid.UUID) ([]PostMedium, error) {
+	rows, err := q.db.Query(ctx, findPostsMedias, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PostMedium
+	for rows.Next() {
+		var i PostMedium
+		if err := rows.Scan(
+			&i.ID,
+			&i.PostID,
+			&i.Type,
+			&i.MimeType,
+			&i.Url,
+			&i.DisplayOrder,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const findUserPosts = `-- name: FindUserPosts :many
+SELECT id, author_id, reply_to, content, created_at, deleted_at FROM posts
+    WHERE author_id = $1
+    ORDER BY created_at DESC, id DESC
+    LIMIT $2
+`
+
+type FindUserPostsParams struct {
+	AuthorID uuid.UUID
+	Limit    int32
+}
+
+func (q *Queries) FindUserPosts(ctx context.Context, arg FindUserPostsParams) ([]Post, error) {
+	rows, err := q.db.Query(ctx, findUserPosts, arg.AuthorID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Post
+	for rows.Next() {
+		var i Post
+		if err := rows.Scan(
+			&i.ID,
+			&i.AuthorID,
+			&i.ReplyTo,
+			&i.Content,
+			&i.CreatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const findUserPostsWithCursor = `-- name: FindUserPostsWithCursor :many
+SELECT id, author_id, reply_to, content, created_at, deleted_at FROM posts
+    WHERE author_id = $1
+        AND (created_at, id) < ($3, $4::uuid)
+    ORDER BY created_at DESC, id DESC
+    LIMIT $2
+`
+
+type FindUserPostsWithCursorParams struct {
+	AuthorID      uuid.UUID
+	Limit         int32
+	LastCreatedAt pgtype.Timestamptz
+	LastID        uuid.UUID
+}
+
+func (q *Queries) FindUserPostsWithCursor(ctx context.Context, arg FindUserPostsWithCursorParams) ([]Post, error) {
+	rows, err := q.db.Query(ctx, findUserPostsWithCursor,
+		arg.AuthorID,
+		arg.Limit,
+		arg.LastCreatedAt,
+		arg.LastID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Post
+	for rows.Next() {
+		var i Post
+		if err := rows.Scan(
+			&i.ID,
+			&i.AuthorID,
+			&i.ReplyTo,
+			&i.Content,
+			&i.CreatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

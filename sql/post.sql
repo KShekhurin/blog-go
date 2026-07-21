@@ -6,6 +6,23 @@ WHERE id = $1 LIMIT 1;
 SELECT * FROM post_media
     WHERE post_id = $1;
 
+-- name: FindUserPosts :many
+SELECT * FROM posts
+    WHERE author_id = $1
+    ORDER BY created_at DESC, id DESC
+    LIMIT $2;
+
+-- name: FindUserPostsWithCursor :many
+SELECT * FROM posts
+    WHERE author_id = $1
+        AND (created_at, id) < (sqlc.arg(last_created_at), sqlc.arg(last_id)::uuid)
+    ORDER BY created_at DESC, id DESC
+    LIMIT $2;
+
+-- name: FindPostsMedias :many
+SELECT * FROM post_media
+    WHERE post_id = ANY($1::uuid[]);
+
 -- name: AddPost :exec
 INSERT INTO posts
     (id, author_id, reply_to, content, created_at, deleted_at)
