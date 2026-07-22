@@ -75,7 +75,7 @@ func (h *PostsHandle) GetPostsByUserId(ctx *gin.Context) {
 		return
 	}
 
-	user_id, err := uuid.Parse(ctx.Param("user_id"))
+	userId, err := uuid.Parse(ctx.Param("userId"))
 	if err != nil {
 		ctx.Error(err)
 		return
@@ -95,7 +95,7 @@ func (h *PostsHandle) GetPostsByUserId(ctx *gin.Context) {
 		}
 	}
 
-	posts, cursor, err := h.postService.GetPostsByAuthorId(ctx, user_id, cursor, limit)
+	posts, cursor, err := h.postService.GetPostsByAuthorId(ctx, userId, cursor, limit)
 	if err != nil {
 		ctx.Error(err)
 		return

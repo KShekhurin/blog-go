@@ -122,6 +122,62 @@ const docTemplate = `{
                 }
             }
         },
+        "/user/{author_id}/subscriptions": {
+            "post": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "An API route to subscribe user to the author with the specified ID\nUser's ID is provided in JWT token",
+                "tags": [
+                    "user"
+                ],
+                "summary": "Subscribe the user to the author",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Author ID",
+                        "name": "author_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "An API route to unsubscribe user with the author with the specified ID\nUser's ID is provided in JWT token",
+                "tags": [
+                    "user"
+                ],
+                "summary": "Unsubscribe the user from the author",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Author ID",
+                        "name": "author_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
         "/user/{user_id}/posts": {
             "get": {
                 "description": "An API route to get the user's post, on consecutive requests pass the cursor",

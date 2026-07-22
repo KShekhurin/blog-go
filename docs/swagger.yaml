@@ -180,6 +180,45 @@ paths:
       summary: Send a post from the user
       tags:
       - posts
+  /user/{author_id}/subscriptions:
+    delete:
+      description: |-
+        An API route to unsubscribe user with the author with the specified ID
+        User's ID is provided in JWT token
+      parameters:
+      - description: Author ID
+        format: uuid
+        in: path
+        name: author_id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      security:
+      - Bearer: []
+      summary: Unsubscribe the user from the author
+      tags:
+      - user
+    post:
+      description: |-
+        An API route to subscribe user to the author with the specified ID
+        User's ID is provided in JWT token
+      parameters:
+      - description: Author ID
+        format: uuid
+        in: path
+        name: author_id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      security:
+      - Bearer: []
+      summary: Subscribe the user to the author
+      tags:
+      - user
   /user/{user_id}/posts:
     get:
       consumes:

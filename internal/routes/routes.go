@@ -36,8 +36,9 @@ func CreateRouter(databaseConnect *db.Database, cfg *config.Config) *gin.Engine 
 	authService := services.NewAuthService(userRepo, cfg.PrivateKey, cfg.SignMethod)
 	postService := services.NewPostService(postRepo)
 
-	userHandle := handles.NewAuthHandler(userService, authService)
+	authHandle := handles.NewAuthHandler(userService, authService)
 	postHandle := handles.NewPostsHandle(postService)
+	userHandle := handles.NewUserHandler(userService)
 
 	jwtMiddleware := middleware.NewJwtMiddleware(cfg.PublicKey)
 
@@ -48,8 +49,8 @@ func CreateRouter(databaseConnect *db.Database, cfg *config.Config) *gin.Engine 
 	{
 		authGroup := v1.Group("/auth")
 		{
-			authGroup.POST("/register", userHandle.Register)
-			authGroup.POST("/login", userHandle.Login)
+			authGroup.POST("/register", authHandle.Register)
+			authGroup.POST("/login", authHandle.Login)
 		}
 
 		postGroup := v1.Group("/post")
@@ -60,6 +61,8 @@ func CreateRouter(databaseConnect *db.Database, cfg *config.Config) *gin.Engine 
 		userGroup := v1.Group("/user")
 		{
 			userGroup.GET("/:user_id/posts", postHandle.GetPostsByUserId)
+			userGroup.POST("/:author_id/subscriptions", jwtMiddleware.Pass, userHandle.SubscribeTo)
+			userGroup.DELETE("/:author_id/subscriptions", jwtMiddleware.Pass, userHandle.UnsubscribeFrom)
 		}
 	}
 	return router
