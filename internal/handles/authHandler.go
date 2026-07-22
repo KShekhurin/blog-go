@@ -20,6 +20,14 @@ func NewAuthHandler(userService services.UserService, authService services.AuthS
 	}
 }
 
+// @Summary		Register a new user
+// @Description	An API route to register a new user, on success returns access/refresh jwt pair
+// @Tags		auth
+// @Accept		json
+// @Produce		json
+// @Param		user_data	body		webModels.UserRegisterInfo	true	"Registration payload"
+// @Success		200			{object}	webModels.TokenPair
+// @Router		/auth/register [post]
 func (h *AuthHandler) Register(ctx *gin.Context) {
 	var registerInfo webModels.UserRegisterInfo
 
@@ -44,6 +52,15 @@ func (h *AuthHandler) Register(ctx *gin.Context) {
 	ctx.JSON(http.StatusCreated, tokens)
 }
 
+// @Summary		Login with existing user
+// @Description	An API route to login an user, on success returns access/refresh jwt pair
+// @Description Ether login or email is required
+// @Tags		auth
+// @Accept		json
+// @Produce		json
+// @Param		user_data	body		webModels.UserLoginInfo	true	"Login payload"
+// @Success		200			{object}	webModels.TokenPair
+// @Router		/auth/login [post]
 func (h *AuthHandler) Login(ctx *gin.Context) {
 	var userLoginInfo webModels.UserLoginInfo
 

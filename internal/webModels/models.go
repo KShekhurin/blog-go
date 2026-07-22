@@ -1,5 +1,10 @@
 package webModels
 
+type TokenPair struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+}
+
 type UserRegisterInfo struct {
 	Login    string `json:"login" binding:"required"`
 	Email    string `json:"email" binding:"required,email"`

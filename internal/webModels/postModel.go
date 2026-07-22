@@ -24,7 +24,7 @@ type Post struct {
 	Content   string          `json:"content"`
 	CreatedAt time.Time       `json:"created_at"`
 	DeletedAt *time.Time      `json:"deleted_at,omitempty"`
-	Attached  []AttachedMedia `json:"attached"`
+	Attached  []AttachedMedia `json:"attached,omitempty"`
 }
 
 // In
@@ -33,11 +33,16 @@ type CreateAttachedMedia struct {
 	Type         string `json:"type" binding:"required"`
 	MimeType     string `json:"mime_type" binding:"required"`
 	Url          string `json:"url" binding:"required,url"`
-	DisplayOrder int    `json:"display_order" binding:"gte=0"`
+	DisplayOrder int    `json:"display_order" binding:"gte=0,required"`
 }
 
 type CreatePostRequest struct {
 	ReplyTo  *uuid.UUID            `json:"reply_to" binding:"omitempty"`
 	Content  string                `json:"content" binding:"required"`
-	Attached []CreateAttachedMedia `json:"attached" binding:"omitempty,dive"`
+	Attached []CreateAttachedMedia `json:"attached" binding:"dive,omitempty"`
+}
+
+type PostPaginationResponse struct {
+	Posts  []Post `json:"posts"`
+	Cursor string `json:"cursor"`
 }

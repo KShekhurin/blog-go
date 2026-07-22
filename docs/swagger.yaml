@@ -1,0 +1,220 @@
+basePath: /api/v1
+definitions:
+  webModels.AttachedMedia:
+    properties:
+      display_order:
+        type: integer
+      id:
+        type: string
+      mime_type:
+        type: string
+      post_id:
+        type: string
+      type:
+        type: string
+      url:
+        type: string
+    type: object
+  webModels.CreateAttachedMedia:
+    properties:
+      display_order:
+        minimum: 0
+        type: integer
+      mime_type:
+        type: string
+      type:
+        type: string
+      url:
+        type: string
+    required:
+    - display_order
+    - mime_type
+    - type
+    - url
+    type: object
+  webModels.CreatePostRequest:
+    properties:
+      attached:
+        items:
+          $ref: '#/definitions/webModels.CreateAttachedMedia'
+        type: array
+      content:
+        type: string
+      reply_to:
+        type: string
+    required:
+    - content
+    type: object
+  webModels.Post:
+    properties:
+      attached:
+        items:
+          $ref: '#/definitions/webModels.AttachedMedia'
+        type: array
+      author_id:
+        type: string
+      content:
+        type: string
+      created_at:
+        type: string
+      deleted_at:
+        type: string
+      id:
+        type: string
+      reply_to:
+        type: string
+    type: object
+  webModels.PostPaginationResponse:
+    properties:
+      cursor:
+        type: string
+      posts:
+        items:
+          $ref: '#/definitions/webModels.Post'
+        type: array
+    type: object
+  webModels.TokenPair:
+    properties:
+      access_token:
+        type: string
+      refresh_token:
+        type: string
+    type: object
+  webModels.UserLoginInfo:
+    properties:
+      email:
+        type: string
+      login:
+        type: string
+      password:
+        type: string
+    type: object
+  webModels.UserRegisterInfo:
+    properties:
+      email:
+        type: string
+      login:
+        type: string
+      password:
+        type: string
+    required:
+    - email
+    - login
+    - password
+    type: object
+host: localhost:9090
+info:
+  contact: {}
+  description: This is the example of a twitter-like blog written on go
+  title: Blog API
+  version: 1.0.0
+paths:
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        An API route to login an user, on success returns access/refresh jwt pair
+        Ether login or email is required
+      parameters:
+      - description: Login payload
+        in: body
+        name: user_data
+        required: true
+        schema:
+          $ref: '#/definitions/webModels.UserLoginInfo'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/webModels.TokenPair'
+      summary: Login with existing user
+      tags:
+      - auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: An API route to register a new user, on success returns access/refresh
+        jwt pair
+      parameters:
+      - description: Registration payload
+        in: body
+        name: user_data
+        required: true
+        schema:
+          $ref: '#/definitions/webModels.UserRegisterInfo'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/webModels.TokenPair'
+      summary: Register a new user
+      tags:
+      - auth
+  /post:
+    post:
+      consumes:
+      - application/json
+      description: An API route to send a post, requires an access token
+      parameters:
+      - description: Post payload
+        in: body
+        name: post_data
+        required: true
+        schema:
+          $ref: '#/definitions/webModels.CreatePostRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/webModels.Post'
+      security:
+      - Bearer: []
+      summary: Send a post from the user
+      tags:
+      - posts
+  /user/{user_id}/posts:
+    get:
+      consumes:
+      - application/json
+      description: An API route to get the user's post, on consecutive requests pass
+        the cursor
+      parameters:
+      - description: User ID
+        format: uuid
+        in: path
+        name: user_id
+        required: true
+        type: string
+      - description: Pagination cursor
+        in: query
+        name: cursor
+        type: string
+      - description: Post cnt limit
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/webModels.PostPaginationResponse'
+      summary: Get posts from the user
+      tags:
+      - posts
+securityDefinitions:
+  Bearer:
+    description: Type "Bearer" followed by a space and JWT token.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

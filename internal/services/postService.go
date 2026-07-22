@@ -17,6 +17,7 @@ var (
 type PostService interface {
 	AddPost(ctx context.Context, request webModels.CreatePostRequest, authorId uuid.UUID) (*webModels.Post, error)
 	GetPostById(ctx context.Context, id uuid.UUID) (*webModels.Post, error)
+	GetPostsByAuthorId(ctx context.Context, authorId uuid.UUID, cursor *webModels.PostPaginationCursor, limit int) ([]webModels.Post, *webModels.PostPaginationCursor, error)
 }
 
 type postService struct {
@@ -60,7 +61,22 @@ func toPost(request *webModels.CreatePostRequest, authorId uuid.UUID) *webModels
 	}
 }
 
-func (s postService) AddPost(ctx context.Context, request webModels.CreatePostRequest, authorId uuid.UUID) (*webModels.Post, error) {
+func (s *postService) GetPostsByAuthorId(ctx context.Context, authorId uuid.UUID, cursor *webModels.PostPaginationCursor, limit int) ([]webModels.Post, *webModels.PostPaginationCursor, error) {
+	posts, cursor, err := s.postRepo.GetPostsByAuthorId(
+		ctx,
+		authorId,
+		cursor,
+		limit,
+	)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return posts, cursor, nil
+}
+
+func (s *postService) AddPost(ctx context.Context, request webModels.CreatePostRequest, authorId uuid.UUID) (*webModels.Post, error) {
 	post := toPost(&request, authorId)
 
 	err := s.postRepo.AddPost(ctx, post)
@@ -72,7 +88,7 @@ func (s postService) AddPost(ctx context.Context, request webModels.CreatePostRe
 	return post, nil
 }
 
-func (s postService) GetPostById(ctx context.Context, id uuid.UUID) (*webModels.Post, error) {
+func (s *postService) GetPostById(ctx context.Context, id uuid.UUID) (*webModels.Post, error) {
 	post, err := s.postRepo.GetPostById(ctx, id)
 
 	if err != nil {

@@ -62,7 +62,7 @@ func toAddPostAttachmentsParams(attachments []webModels.AttachedMedia) []databas
 type PostRepository interface {
 	AddPost(ctx context.Context, post *webModels.Post) error
 	GetPostById(ctx context.Context, id uuid.UUID) (*webModels.Post, error)
-	GetPostsByAuthorId(ctx context.Context, authorId uuid.UUID, cursor *webModels.PostPaginationCursor, limit int) ([]webModels.Post, error)
+	GetPostsByAuthorId(ctx context.Context, authorId uuid.UUID, cursor *webModels.PostPaginationCursor, limit int) ([]webModels.Post, *webModels.PostPaginationCursor, error)
 }
 
 type postRepository struct {
@@ -193,7 +193,22 @@ func mapPostsMediaByPostId(postsMedia []database.PostMedium) map[uuid.UUID][]web
 	return uuidToAttachmentsSlice
 }
 
-func (r *postRepository) GetPostsByAuthorId(ctx context.Context, authorId uuid.UUID, cursor *webModels.PostPaginationCursor, limit int) ([]webModels.Post, error) {
+func makeNewCursor(posts []webModels.Post) *webModels.PostPaginationCursor {
+	lastPost := posts[len(posts)-1]
+
+	return &webModels.PostPaginationCursor{
+		LastId:   lastPost.Id,
+		LastTime: lastPost.CreatedAt,
+	}
+}
+
+func (r *postRepository) GetPostsByAuthorId(
+	ctx context.Context,
+	authorId uuid.UUID,
+	cursor *webModels.PostPaginationCursor,
+	limit int,
+) ([]webModels.Post, *webModels.PostPaginationCursor, error) {
+
 	var postsData []database.Post
 	var err error
 
@@ -217,11 +232,11 @@ func (r *postRepository) GetPostsByAuthorId(ctx context.Context, authorId uuid.U
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to find posts: %w", err)
+		return nil, nil, fmt.Errorf("failed to find posts: %w", err)
 	}
 
 	if len(postsData) == 0 {
-		return []webModels.Post{}, nil
+		return []webModels.Post{}, nil, nil
 	}
 
 	postIds := gatherPostIDs(postsData)
@@ -229,7 +244,7 @@ func (r *postRepository) GetPostsByAuthorId(ctx context.Context, authorId uuid.U
 	attachedMedia, err := r.query.FindPostsMedias(ctx, postIds)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to find attached posts' medias: %w", err)
+		return nil, nil, fmt.Errorf("failed to find attached posts' medias: %w", err)
 	}
 
 	uuidToAttachments := mapPostsMediaByPostId(attachedMedia)
@@ -242,5 +257,5 @@ func (r *postRepository) GetPostsByAuthorId(ctx context.Context, authorId uuid.U
 			toPost(&postData, uuidToAttachments[postData.ID]))
 	}
 
-	return posts, nil
+	return posts, makeNewCursor(posts), nil
 }

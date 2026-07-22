@@ -29,14 +29,9 @@ type TokenClaims struct {
 	jwt.RegisteredClaims
 }
 
-type TokenPair struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-}
-
 type AuthService interface {
 	AuthenticateUser(ctx context.Context, userInfo *webModels.UserLoginInfo) (*database.User, error)
-	SignJWT(ctx context.Context, userInfo *database.User) (*TokenPair, error)
+	SignJWT(ctx context.Context, userInfo *database.User) (*webModels.TokenPair, error)
 }
 
 type authService struct {
@@ -77,7 +72,7 @@ func (service *authService) AuthenticateUser(ctx context.Context, userInfo *webM
 	return user, nil
 }
 
-func (service *authService) SignJWT(ctx context.Context, user *database.User) (*TokenPair, error) {
+func (service *authService) SignJWT(ctx context.Context, user *database.User) (*webModels.TokenPair, error) {
 	iat := time.Now()
 
 	access_token, err := jwt.NewWithClaims(
@@ -110,7 +105,7 @@ func (service *authService) SignJWT(ctx context.Context, user *database.User) (*
 		return nil, fmt.Errorf("sign jwt failed: %w", err)
 	}
 
-	return &TokenPair{
+	return &webModels.TokenPair{
 		AccessToken:  access_token,
 		RefreshToken: refresh_token,
 	}, nil

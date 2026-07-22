@@ -2,16 +2,28 @@ package routes
 
 import (
 	"github.com/KShekhurin/blog-go/config"
+	_ "github.com/KShekhurin/blog-go/docs"
 	"github.com/KShekhurin/blog-go/internal/database"
 	"github.com/KShekhurin/blog-go/internal/db"
 	"github.com/KShekhurin/blog-go/internal/handles"
 	"github.com/KShekhurin/blog-go/internal/middleware"
 	"github.com/KShekhurin/blog-go/internal/repositories"
 	"github.com/KShekhurin/blog-go/internal/services"
-
 	"github.com/gin-gonic/gin"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
+//	@title			Blog API
+//	@version		1.0.0
+//	@description	This is the example of a twitter-like blog written on go
+
+// @host						localhost:9090
+// @BasePath					/api/v1
+// @securityDefinitions.apikey	Bearer
+// @in							header
+// @name						Authorization
+// @description				Type "Bearer" followed by a space and JWT token.
 func CreateRouter(databaseConnect *db.Database, cfg *config.Config) *gin.Engine {
 	router := gin.Default()
 
@@ -29,17 +41,26 @@ func CreateRouter(databaseConnect *db.Database, cfg *config.Config) *gin.Engine 
 
 	jwtMiddleware := middleware.NewJwtMiddleware(cfg.PublicKey)
 
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
 	v1 := router.Group("/api/v1")
 	v1.Use(middleware.ErrorMiddleware())
 	{
-		v1.POST("/register", userHandle.Register)
-		v1.POST("/login", userHandle.Login)
+		authGroup := v1.Group("/auth")
+		{
+			authGroup.POST("/register", userHandle.Register)
+			authGroup.POST("/login", userHandle.Login)
+		}
 
 		postGroup := v1.Group("/post")
 		{
 			postGroup.POST("", jwtMiddleware.Pass, postHandle.SendPost)
 		}
-	}
 
+		userGroup := v1.Group("/user")
+		{
+			userGroup.GET("/:user_id/posts", postHandle.GetPostsByUserId)
+		}
+	}
 	return router
 }
