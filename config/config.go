@@ -18,6 +18,7 @@ type Config struct {
 	AppEnv      string
 	ServerPort  string
 	DatabaseURL string
+	RedisURL    string
 	JWTSecret   string
 
 	PrivateKey ed25519.PrivateKey
@@ -66,6 +67,7 @@ func Load() (*Config, error) {
 	cfg.AppEnv = getEnv("APP_ENV", "development")
 	cfg.ServerPort = getEnv("SERVER_PORT", "8080")
 	cfg.DatabaseURL = getEnv("DATABASE_URL", "")
+	cfg.RedisURL = getEnv("REDIS_URL", "")
 	cfg.JWTSecret = getEnv("JWT_SECRET", "")
 	argon2Memory, err := strconv.ParseUint(getEnv("ARGON2_MEMORY", "65536"), 10, 32)
 

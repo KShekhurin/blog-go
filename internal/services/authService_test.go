@@ -260,7 +260,7 @@ func TestSignJWT(t *testing.T) {
 			assert.Equal(t, start.Add(15*time.Minute).Unix(), accessClaims.ExpiresAt.Unix())
 
 			refreshClaims := parse(tokenPair.RefreshToken)
-			assert.Equal(t, RegisterType, refreshClaims.Type)
+			assert.Equal(t, RefreshType, refreshClaims.Type)
 			assert.Equal(t, user.ID.String(), refreshClaims.Subject)
 			assert.Equal(t, IssuerName, refreshClaims.Issuer)
 			require.NotNil(t, refreshClaims.IssuedAt)

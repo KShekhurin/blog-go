@@ -56,6 +56,12 @@ func (ns NullMediaType) Value() (driver.Value, error) {
 	return string(ns.MediaType), nil
 }
 
+type AllowedRefreshToken struct {
+	Jti       uuid.UUID
+	UserID    uuid.UUID
+	ExpiresAt pgtype.Timestamptz
+}
+
 type Post struct {
 	ID        uuid.UUID
 	AuthorID  uuid.UUID

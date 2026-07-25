@@ -12,6 +12,7 @@ import (
 	"github.com/KShekhurin/blog-go/internal/webModels"
 	"github.com/alexedwards/argon2id"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
 var (
@@ -19,9 +20,9 @@ var (
 )
 
 const (
-	AuthType     = "auth"
-	RegisterType = "register"
-	IssuerName   = "blog"
+	AuthType    = "auth"
+	RefreshType = "refresh"
+	IssuerName  = "blog"
 )
 
 type TokenClaims struct {
@@ -31,29 +32,33 @@ type TokenClaims struct {
 
 type AuthService interface {
 	AuthenticateUser(ctx context.Context, userInfo *webModels.UserLoginInfo) (*database.User, error)
-	SignJWT(ctx context.Context, userInfo *database.User) (*webModels.TokenPair, error)
+	SignJWT(ctx context.Context, userId uuid.UUID) (*webModels.TokenPair, error)
+	RotateJWT(ctx context.Context, jti uuid.UUID, userId uuid.UUID) (*webModels.TokenPair, error)
+	LogoutByRefresh(ctx context.Context, jti uuid.UUID) error
 }
 
 type authService struct {
 	userRepo   repositories.UserRepository
+	tokenRepo  repositories.TokenRepository
 	privateKey ed25519.PrivateKey
 	signMethod jwt.SigningMethod
 }
 
-func NewAuthService(userRepo repositories.UserRepository, privateKey ed25519.PrivateKey, signMethod jwt.SigningMethod) AuthService {
+func NewAuthService(userRepo repositories.UserRepository, tokenRepo repositories.TokenRepository, privateKey ed25519.PrivateKey, signMethod jwt.SigningMethod) AuthService {
 	return &authService{
 		userRepo:   userRepo,
 		privateKey: privateKey,
+		tokenRepo:  tokenRepo,
 		signMethod: signMethod,
 	}
 }
 
-func (service *authService) AuthenticateUser(ctx context.Context, userInfo *webModels.UserLoginInfo) (*database.User, error) {
+func (s *authService) AuthenticateUser(ctx context.Context, userInfo *webModels.UserLoginInfo) (*database.User, error) {
 	if userInfo.Login == "" && userInfo.Email == "" {
 		return nil, ErrorBadPayload
 	}
 
-	user, err := service.userRepo.FindUserByLoginOrEmail(ctx, userInfo.Login, userInfo.Email)
+	user, err := s.userRepo.FindUserByLoginOrEmail(ctx, userInfo.Login, userInfo.Email)
 	if err != nil {
 		if errors.Is(err, repositories.ErrorDoesNotExist) {
 			return nil, ErrorInvalidCredentials
@@ -72,41 +77,77 @@ func (service *authService) AuthenticateUser(ctx context.Context, userInfo *webM
 	return user, nil
 }
 
-func (service *authService) SignJWT(ctx context.Context, user *database.User) (*webModels.TokenPair, error) {
+func (s *authService) SignJWT(ctx context.Context, userId uuid.UUID) (*webModels.TokenPair, error) {
 	iat := time.Now()
 
-	access_token, err := jwt.NewWithClaims(
-		service.signMethod,
+	accessToken, err := jwt.NewWithClaims(
+		s.signMethod,
 		&TokenClaims{
 			Type: AuthType,
 			RegisteredClaims: jwt.RegisteredClaims{
 				Issuer:    IssuerName,
-				Subject:   user.ID.String(),
+				Subject:   userId.String(),
 				IssuedAt:  jwt.NewNumericDate(iat),
 				ExpiresAt: jwt.NewNumericDate(iat.Add(15 * time.Minute)),
 			},
-		}).SignedString(service.privateKey)
+		}).SignedString(s.privateKey)
 	if err != nil {
 		return nil, fmt.Errorf("sign jwt failed: %w", err)
 	}
 
-	refresh_token, err := jwt.NewWithClaims(
-		service.signMethod,
+	jti := uuid.New()
+	refreshExpiration := iat.Add(30 * 24 * time.Hour)
+
+	refreshToken, err := jwt.NewWithClaims(
+		s.signMethod,
 		&TokenClaims{
-			Type: RegisterType,
+			Type: RefreshType,
 			RegisteredClaims: jwt.RegisteredClaims{
 				Issuer:    IssuerName,
-				Subject:   user.ID.String(),
+				Subject:   userId.String(),
 				IssuedAt:  jwt.NewNumericDate(iat),
-				ExpiresAt: jwt.NewNumericDate(iat.Add(30 * 24 * time.Hour)),
+				ExpiresAt: jwt.NewNumericDate(refreshExpiration),
+				ID:        jti.String(),
 			},
-		}).SignedString(service.privateKey)
+		}).SignedString(s.privateKey)
 	if err != nil {
 		return nil, fmt.Errorf("sign jwt failed: %w", err)
+	}
+
+	err = s.tokenRepo.AddToken(ctx, jti, userId, refreshExpiration)
+	if err != nil {
+		return nil, fmt.Errorf("add token failed: %w", err)
 	}
 
 	return &webModels.TokenPair{
-		AccessToken:  access_token,
-		RefreshToken: refresh_token,
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
 	}, nil
+}
+
+func (s *authService) RotateJWT(ctx context.Context, jti uuid.UUID, userId uuid.UUID) (*webModels.TokenPair, error) {
+	isSuccess, err := s.tokenRepo.TryToDeleteToken(ctx, jti)
+	if err != nil {
+		return nil, fmt.Errorf("try to delete token failed: %w", err)
+	}
+
+	if !isSuccess {
+		return nil, ErrorInvalidCredentials
+	}
+
+	return s.SignJWT(ctx, userId)
+}
+
+func (s *authService) LogoutByRefresh(ctx context.Context, jti uuid.UUID) error {
+	isSuccess, err := s.tokenRepo.TryToDeleteToken(ctx, jti)
+
+	if err != nil {
+		return fmt.Errorf("try to delete token failed: %w", err)
+	}
+
+	if !isSuccess {
+		return ErrorInvalidCredentials
+	}
+
+	return nil
 }

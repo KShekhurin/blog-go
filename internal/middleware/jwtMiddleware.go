@@ -12,7 +12,10 @@ import (
 	"github.com/google/uuid"
 )
 
-const UserIDKey = "user_id"
+const (
+	UserIDKey     = "user_id"
+	RefreshJTIKey = "refresh_jti"
+)
 
 type authHeader struct {
 	HeaderValue string `header:"Authorization" binding:"required"`
@@ -33,6 +36,7 @@ func (h authHeader) tokenStr() (string, error) {
 
 type JwtMiddleware interface {
 	Pass(c *gin.Context)
+	PassRefresh(c *gin.Context)
 }
 
 type jwtMiddleware struct {
@@ -43,6 +47,65 @@ func NewJwtMiddleware(publicKey ed25519.PublicKey) JwtMiddleware {
 	return &jwtMiddleware{
 		publicKey: publicKey,
 	}
+}
+
+func (m *jwtMiddleware) PassRefresh(c *gin.Context) {
+	var header authHeader
+
+	if err := c.ShouldBindHeader(&header); err != nil {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	tokenStr, err := header.tokenStr()
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	var claims services.TokenClaims
+
+	token, err := jwt.ParseWithClaims(
+		tokenStr,
+		&claims,
+		func(token *jwt.Token) (interface{}, error) {
+			return m.publicKey, nil
+		},
+		jwt.WithIssuer(services.IssuerName),
+		jwt.WithValidMethods([]string{"EdDSA"}),
+		jwt.WithExpirationRequired(),
+		jwt.WithIssuedAt())
+
+	if err != nil {
+		if errors.Is(err, jwt.ErrTokenExpired) {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "expired"})
+			return
+		}
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	if !token.Valid || claims.Type != services.RefreshType {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	userID, err := uuid.Parse(claims.Subject)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	jti, err := uuid.Parse(claims.ID)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	c.Set(UserIDKey, userID)
+	c.Set(RefreshJTIKey, jti)
+
+	c.Next()
 }
 
 func (m *jwtMiddleware) Pass(c *gin.Context) {

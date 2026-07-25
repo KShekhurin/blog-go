@@ -31,9 +31,10 @@ func CreateRouter(databaseConnect *db.Database, cfg *config.Config) *gin.Engine 
 
 	userRepo := repositories.NewUserRepository(query)
 	postRepo := repositories.NewPostRepository(databaseConnect.Db)
+	tokenRepo := repositories.NewTokenRepository(query)
 
 	userService := services.NewUserService(userRepo, cfg.HashParams)
-	authService := services.NewAuthService(userRepo, cfg.PrivateKey, cfg.SignMethod)
+	authService := services.NewAuthService(userRepo, tokenRepo, cfg.PrivateKey, cfg.SignMethod)
 	postService := services.NewPostService(postRepo)
 
 	authHandle := handles.NewAuthHandler(userService, authService)
@@ -51,6 +52,8 @@ func CreateRouter(databaseConnect *db.Database, cfg *config.Config) *gin.Engine 
 		{
 			authGroup.POST("/register", authHandle.Register)
 			authGroup.POST("/login", authHandle.Login)
+			authGroup.POST("/refresh", jwtMiddleware.PassRefresh, authHandle.Refresh)
+			authGroup.POST("/logout", jwtMiddleware.PassRefresh, authHandle.Logout)
 		}
 
 		postGroup := v1.Group("/post")

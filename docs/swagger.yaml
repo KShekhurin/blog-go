@@ -133,6 +133,38 @@ paths:
       summary: Login with existing user
       tags:
       - auth
+  /auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: Remove refresh token from allow list
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+      security:
+      - Bearer: []
+      summary: Log out
+      tags:
+      - auth
+  /auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: Exchange a valid refresh token for a new token pair
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/webModels.TokenPair'
+      security:
+      - Bearer: []
+      summary: Refresh access/refresh pair
+      tags:
+      - auth
   /auth/register:
     post:
       consumes:

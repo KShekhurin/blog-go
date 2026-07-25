@@ -3,9 +3,11 @@ package handles
 import (
 	"net/http"
 
+	"github.com/KShekhurin/blog-go/internal/middleware"
 	"github.com/KShekhurin/blog-go/internal/services"
 	"github.com/KShekhurin/blog-go/internal/webModels"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type AuthHandler struct {
@@ -43,7 +45,7 @@ func (h *AuthHandler) Register(ctx *gin.Context) {
 		return
 	}
 
-	tokens, err := h.authService.SignJWT(ctx.Request.Context(), user)
+	tokens, err := h.authService.SignJWT(ctx.Request.Context(), user.ID)
 	if err != nil {
 		ctx.Error(err)
 		return
@@ -75,11 +77,80 @@ func (h *AuthHandler) Login(ctx *gin.Context) {
 		return
 	}
 
-	tokens, err := h.authService.SignJWT(ctx.Request.Context(), user)
+	tokens, err := h.authService.SignJWT(ctx.Request.Context(), user.ID)
 	if err != nil {
 		ctx.Error(err)
 		return
 	}
 
 	ctx.JSON(http.StatusOK, tokens)
+}
+
+// @Summary		Refresh access/refresh pair
+// @Description	Exchange a valid refresh token for a new token pair
+// @Tags		auth
+// @Accept		json
+// @Produce		json
+// @Security	Bearer
+// @Success		200	{object}	webModels.TokenPair
+// @Router		/auth/refresh [post]
+func (h *AuthHandler) Refresh(ctx *gin.Context) {
+	userIDValue, exists := ctx.Get(middleware.UserIDKey)
+	if !exists {
+		ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	userID, ok := userIDValue.(uuid.UUID)
+	if !ok {
+		ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	jtiValue, exists := ctx.Get(middleware.RefreshJTIKey)
+	if !exists {
+		ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	jti, ok := jtiValue.(uuid.UUID)
+	if !ok {
+		ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	tokens, err := h.authService.RotateJWT(ctx.Request.Context(), jti, userID)
+	if err != nil {
+		ctx.Error(err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, tokens)
+}
+
+// @Summary		Log out
+// @Description	Remove refresh token from allow list
+// @Tags		auth
+// @Accept		json
+// @Produce		json
+// @Security	Bearer
+// @Success		204    "No Content"
+// @Router		/auth/logout [post]
+func (h *AuthHandler) Logout(ctx *gin.Context) {
+	jtiValue, exists := ctx.Get(middleware.RefreshJTIKey)
+	if !exists {
+		ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	jti, ok := jtiValue.(uuid.UUID)
+	if !ok {
+		ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	err := h.authService.LogoutByRefresh(ctx.Request.Context(), jti)
+	if err != nil {
+		ctx.Error(err)
+		return
+	}
+
+	ctx.JSON(http.StatusNoContent, gin.H{})
 }

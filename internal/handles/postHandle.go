@@ -106,9 +106,9 @@ func (h *PostsHandle) GetPostsByUserId(ctx *gin.Context) {
 		ctx.Error(err)
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{
-		"posts":  posts,
-		"cursor": encodedCursor,
+	ctx.JSON(http.StatusOK, webModels.PostPaginationResponse{
+		Posts:  posts,
+		Cursor: encodedCursor,
 	})
 }
 

@@ -168,7 +168,7 @@ func TestJwtMiddlewarePass(t *testing.T) {
 
 	t.Run("claim type is not auth", func(t *testing.T) {
 		token := signedToken(t, keys.private, jwt.SigningMethodEdDSA, &services.TokenClaims{
-			Type: services.RegisterType,
+			Type: services.RefreshType,
 			RegisteredClaims: jwt.RegisteredClaims{
 				Issuer:    services.IssuerName,
 				Subject:   userID.String(),
