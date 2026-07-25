@@ -106,6 +106,31 @@ func (q *Queries) FindUserByLoginOrEmail(ctx context.Context, arg FindUserByLogi
 	return i, err
 }
 
+const getSubscribers = `-- name: GetSubscribers :many
+SELECT sub_id FROM subscriber_author
+              WHERE auth_id = $1
+`
+
+func (q *Queries) GetSubscribers(ctx context.Context, authID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, getSubscribers, authID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var sub_id uuid.UUID
+		if err := rows.Scan(&sub_id); err != nil {
+			return nil, err
+		}
+		items = append(items, sub_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const subscribeUserTo = `-- name: SubscribeUserTo :exec
 INSERT INTO subscriber_author (sub_id, auth_id)
        VALUES ($1, $2)

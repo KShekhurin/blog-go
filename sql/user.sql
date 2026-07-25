@@ -25,3 +25,7 @@ INSERT INTO subscriber_author (sub_id, auth_id)
 -- name: UnsubscribeUserFrom :exec
 DELETE FROM subscriber_author
        WHERE sub_id = $1 AND auth_id = $2;
+
+-- name: GetSubscribers :many
+SELECT sub_id FROM subscriber_author
+              WHERE auth_id = $1;

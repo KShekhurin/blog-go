@@ -49,11 +49,13 @@ func encodeCursor(cursor *webModels.PostPaginationCursor) (string, error) {
 
 type PostsHandle struct {
 	postService services.PostService
+	feedService services.FeedService
 }
 
-func NewPostsHandle(postService services.PostService) *PostsHandle {
+func NewPostsHandle(postService services.PostService, feedService services.FeedService) *PostsHandle {
 	return &PostsHandle{
 		postService: postService,
+		feedService: feedService,
 	}
 }
 
@@ -145,6 +147,12 @@ func (h *PostsHandle) SendPost(ctx *gin.Context) {
 	if err != nil {
 		ctx.Error(err)
 		return
+	}
+
+	err = h.feedService.PushToFeeds(post)
+	if err != nil {
+		// We should log that the post didnt get to feeds, but it is present in db
+		ctx.Error(err)
 	}
 
 	ctx.JSON(http.StatusOK, post)

@@ -23,6 +23,7 @@ type UserRepository interface {
 	FindUserByLogin(ctx context.Context, login string) (*database.User, error)
 	FindUserByLoginOrEmail(ctx context.Context, login string, email string) (*database.User, error)
 	AddUser(ctx context.Context, user *database.User) error
+	GetSubs(ctx context.Context, userId uuid.UUID) ([]uuid.UUID, error)
 	SubscribeUserTo(ctx context.Context, sub_id uuid.UUID, auth_id uuid.UUID) error
 	UnsubscribeUserFrom(ctx context.Context, sub_id uuid.UUID, auth_id uuid.UUID) error
 }
@@ -93,6 +94,19 @@ func (repo *userRepository) AddUser(ctx context.Context, user *database.User) er
 	}
 
 	return err
+}
+
+func (repo *userRepository) GetSubs(ctx context.Context, userId uuid.UUID) ([]uuid.UUID, error) {
+	ids, err := repo.queries.GetSubscribers(ctx, userId)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrorDoesNotExist
+		}
+		return nil, fmt.Errorf("unexpected error: %w", err)
+	}
+
+	return ids, nil
 }
 
 func (repo *userRepository) SubscribeUserTo(ctx context.Context, sub_id uuid.UUID, auth_id uuid.UUID) error {

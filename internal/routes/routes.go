@@ -1,14 +1,18 @@
 package routes
 
 import (
+	"time"
+
 	"github.com/KShekhurin/blog-go/config"
 	_ "github.com/KShekhurin/blog-go/docs"
+	"github.com/KShekhurin/blog-go/internal/cache"
 	"github.com/KShekhurin/blog-go/internal/database"
 	"github.com/KShekhurin/blog-go/internal/db"
 	"github.com/KShekhurin/blog-go/internal/handles"
 	"github.com/KShekhurin/blog-go/internal/middleware"
 	"github.com/KShekhurin/blog-go/internal/repositories"
 	"github.com/KShekhurin/blog-go/internal/services"
+	"github.com/KShekhurin/blog-go/workpool"
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -29,16 +33,45 @@ func CreateRouter(databaseConnect *db.Database, cfg *config.Config) *gin.Engine 
 
 	query := database.New(databaseConnect.Db)
 
-	userRepo := repositories.NewUserRepository(query)
-	postRepo := repositories.NewPostRepository(databaseConnect.Db)
+	feedCacher := cache.NewFeedCacher(
+		databaseConnect.Cache,
+	)
+
+	userRepo := repositories.NewUserCacheWrapper(
+		repositories.NewUserRepository(query),
+		cache.NewSubsCacher(
+			databaseConnect.Cache,
+		),
+	)
+
+	postRepo := repositories.NewPostCacheWrapper(
+		repositories.NewPostRepository(databaseConnect.Db),
+		cache.NewPostCacher(
+			databaseConnect.Cache,
+			&cache.CacherParams{
+				TTL: 10 * 24 * time.Hour,
+			},
+		),
+	)
 	tokenRepo := repositories.NewTokenRepository(query)
 
 	userService := services.NewUserService(userRepo, cfg.HashParams)
 	authService := services.NewAuthService(userRepo, tokenRepo, cfg.PrivateKey, cfg.SignMethod)
 	postService := services.NewPostService(postRepo)
+	feedService := services.NewFeedService(
+		feedCacher,
+		userRepo,
+		&services.FeedParams{
+			Timeout: 30 * time.Second,
+			WpParams: &workpool.Params{
+				WorkersCount: 10,
+				QueueSize:    200,
+			},
+		},
+	)
 
 	authHandle := handles.NewAuthHandler(userService, authService)
-	postHandle := handles.NewPostsHandle(postService)
+	postHandle := handles.NewPostsHandle(postService, feedService)
 	userHandle := handles.NewUserHandler(userService)
 
 	jwtMiddleware := middleware.NewJwtMiddleware(cfg.PublicKey)
