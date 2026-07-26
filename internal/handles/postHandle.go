@@ -37,6 +37,10 @@ func decodeCursor(cursorEncodedStr string) (*webModels.PostPaginationCursor, err
 }
 
 func encodeCursor(cursor *webModels.PostPaginationCursor) (string, error) {
+	if cursor == nil {
+		return "", nil
+	}
+
 	data, err := json.Marshal(cursor)
 	if err != nil {
 		return "", err
@@ -84,10 +88,6 @@ func (h *PostsHandle) GetPostsByUserId(ctx *gin.Context) {
 	}
 
 	var cursor *webModels.PostPaginationCursor = nil
-
-	if err != nil {
-		ctx.Error(err)
-	}
 
 	if cursorEncodedStr != "" {
 		cursor, err = decodeCursor(cursorEncodedStr)

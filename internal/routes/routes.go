@@ -61,6 +61,7 @@ func CreateRouter(databaseConnect *db.Database, cfg *config.Config) *gin.Engine 
 	feedService := services.NewFeedService(
 		feedCacher,
 		userRepo,
+		postRepo,
 		&services.FeedParams{
 			Timeout: 30 * time.Second,
 			WpParams: &workpool.Params{
@@ -73,6 +74,7 @@ func CreateRouter(databaseConnect *db.Database, cfg *config.Config) *gin.Engine 
 	authHandle := handles.NewAuthHandler(userService, authService)
 	postHandle := handles.NewPostsHandle(postService, feedService)
 	userHandle := handles.NewUserHandler(userService)
+	feedHandle := handles.NewFeedHandle(feedService)
 
 	jwtMiddleware := middleware.NewJwtMiddleware(cfg.PublicKey)
 
@@ -92,6 +94,11 @@ func CreateRouter(databaseConnect *db.Database, cfg *config.Config) *gin.Engine 
 		postGroup := v1.Group("/post")
 		{
 			postGroup.POST("", jwtMiddleware.Pass, postHandle.SendPost)
+		}
+
+		feedGroup := v1.Group("/feed")
+		{
+			feedGroup.GET("", jwtMiddleware.Pass, feedHandle.GetPosts)
 		}
 
 		userGroup := v1.Group("/user")

@@ -188,6 +188,33 @@ paths:
       summary: Register a new user
       tags:
       - auth
+  /feed:
+    get:
+      consumes:
+      - application/json
+      description: An API route to get the posts from user's feed, on consecutive
+        requests pass the cursor
+      parameters:
+      - description: Pagination cursor
+        in: query
+        name: cursor
+        type: string
+      - description: Post cnt limit
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/webModels.PostPaginationResponse'
+      security:
+      - Bearer: []
+      summary: Get posts from the user's feed
+      tags:
+      - feed
   /post:
     post:
       consumes:

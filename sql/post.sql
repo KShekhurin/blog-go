@@ -23,6 +23,10 @@ SELECT * FROM posts
 SELECT * FROM post_media
     WHERE post_id = ANY($1::uuid[]);
 
+-- name: FindPostsByIds :many
+SELECT * FROM posts
+    WHERE id = ANY($1::uuid[]);
+
 -- name: AddPost :exec
 INSERT INTO posts
     (id, author_id, reply_to, content, created_at, deleted_at)

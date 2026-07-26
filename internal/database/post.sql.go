@@ -119,6 +119,38 @@ func (q *Queries) FindPostById(ctx context.Context, id uuid.UUID) (Post, error) 
 	return i, err
 }
 
+const findPostsByIds = `-- name: FindPostsByIds :many
+SELECT id, author_id, reply_to, content, created_at, deleted_at FROM posts
+    WHERE id = ANY($1::uuid[])
+`
+
+func (q *Queries) FindPostsByIds(ctx context.Context, dollar_1 []uuid.UUID) ([]Post, error) {
+	rows, err := q.db.Query(ctx, findPostsByIds, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Post
+	for rows.Next() {
+		var i Post
+		if err := rows.Scan(
+			&i.ID,
+			&i.AuthorID,
+			&i.ReplyTo,
+			&i.Content,
+			&i.CreatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const findPostsMedias = `-- name: FindPostsMedias :many
 SELECT id, post_id, type, mime_type, url, display_order FROM post_media
     WHERE post_id = ANY($1::uuid[])

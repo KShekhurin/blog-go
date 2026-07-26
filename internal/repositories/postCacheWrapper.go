@@ -1,7 +1,9 @@
 package repositories
 
 import (
+	"cmp"
 	"context"
+	"slices"
 
 	"github.com/KShekhurin/blog-go/internal/cache"
 	"github.com/KShekhurin/blog-go/internal/webModels"
@@ -29,6 +31,31 @@ func (w *postCacheWrapper) AddPost(ctx context.Context, post *webModels.Post) er
 
 	err = w.postCache.AddPost(ctx, post)
 	return err //TODO: cache failure != db failure
+}
+
+func (w *postCacheWrapper) GetPostsWithIds(ctx context.Context, ids []uuid.UUID) ([]webModels.Post, error) {
+	cachedPosts, missedPostsIds, err := w.postCache.GetPostsWithIds(ctx, ids)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if len(missedPostsIds) > 0 {
+		missedPosts, err := w.postRepo.GetPostsWithIds(ctx, missedPostsIds)
+		if err != nil {
+			return nil, err
+		}
+		//TODO: This is bad
+		cachedPosts = append(cachedPosts, missedPosts...)
+		cachedPosts = slices.SortedFunc(slices.Values(cachedPosts), func(a, b webModels.Post) int {
+			if a.CreatedAt.Unix() != b.CreatedAt.Unix() {
+				return cmp.Compare(a.CreatedAt.Unix(), b.CreatedAt.Unix())
+			}
+			return cmp.Compare(a.Id.String(), b.Id.String())
+		})
+	}
+
+	return cachedPosts, nil
 }
 
 func (w *postCacheWrapper) GetPostById(ctx context.Context, id uuid.UUID) (*webModels.Post, error) {

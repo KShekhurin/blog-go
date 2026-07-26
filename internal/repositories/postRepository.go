@@ -62,6 +62,7 @@ func toAddPostAttachmentsParams(attachments []webModels.AttachedMedia) []databas
 type PostRepository interface {
 	AddPost(ctx context.Context, post *webModels.Post) error
 	GetPostById(ctx context.Context, id uuid.UUID) (*webModels.Post, error)
+	GetPostsWithIds(ctx context.Context, ids []uuid.UUID) ([]webModels.Post, error)
 	GetPostsByAuthorId(ctx context.Context, authorId uuid.UUID, cursor *webModels.PostPaginationCursor, limit int) ([]webModels.Post, *webModels.PostPaginationCursor, error)
 }
 
@@ -258,4 +259,35 @@ func (r *postRepository) GetPostsByAuthorId(
 	}
 
 	return posts, makeNewCursor(posts), nil
+}
+
+func (r *postRepository) GetPostsWithIds(ctx context.Context, ids []uuid.UUID) ([]webModels.Post, error) {
+	postsData, err := r.query.FindPostsByIds(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find posts: %w", err)
+	}
+
+	if len(postsData) == 0 {
+		return []webModels.Post{}, nil
+	}
+
+	postIds := gatherPostIDs(postsData)
+
+	attachedMedia, err := r.query.FindPostsMedias(ctx, postIds)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to find attached posts' medias: %w", err)
+	}
+
+	uuidToAttachments := mapPostsMediaByPostId(attachedMedia)
+
+	posts := make([]webModels.Post, 0, len(postsData))
+
+	for _, postData := range postsData {
+		posts = append(
+			posts,
+			toPost(&postData, uuidToAttachments[postData.ID]))
+	}
+
+	return posts, nil
 }

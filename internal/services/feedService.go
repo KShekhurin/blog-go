@@ -9,6 +9,7 @@ import (
 	"github.com/KShekhurin/blog-go/internal/repositories"
 	"github.com/KShekhurin/blog-go/internal/webModels"
 	"github.com/KShekhurin/blog-go/workpool"
+	"github.com/google/uuid"
 )
 
 var (
@@ -17,6 +18,7 @@ var (
 
 type FeedService interface {
 	PushToFeeds(post *webModels.Post) error
+	GetFromFeed(ctx context.Context, userId uuid.UUID, cursor *webModels.PostPaginationCursor, limit int) ([]webModels.Post, *webModels.PostPaginationCursor, error)
 	Close()
 }
 
@@ -28,14 +30,16 @@ type FeedParams struct {
 type feedService struct {
 	feedCacher cache.FeedCacher
 	userRepo   repositories.UserRepository
+	postRepo   repositories.PostRepository
 	wp         workpool.WorkPool[*webModels.Post]
 	feedParams *FeedParams
 }
 
-func NewFeedService(feedCacher cache.FeedCacher, userRepo repositories.UserRepository, feedParams *FeedParams) FeedService {
+func NewFeedService(feedCacher cache.FeedCacher, userRepo repositories.UserRepository, postRepo repositories.PostRepository, feedParams *FeedParams) FeedService {
 	s := &feedService{
 		feedCacher: feedCacher,
 		userRepo:   userRepo,
+		postRepo:   postRepo,
 		feedParams: feedParams,
 	}
 
@@ -70,4 +74,32 @@ func (s *feedService) PushToFeeds(post *webModels.Post) error {
 		return ErrorFeedQueueIsFull
 	}
 	return nil
+}
+
+func makeNewCursor(posts []webModels.Post) *webModels.PostPaginationCursor {
+	if len(posts) == 0 {
+		return nil
+	}
+
+	lastPost := posts[len(posts)-1]
+
+	return &webModels.PostPaginationCursor{
+		LastId:   lastPost.Id,
+		LastTime: lastPost.CreatedAt,
+	}
+}
+
+func (s *feedService) GetFromFeed(ctx context.Context, userId uuid.UUID, cursor *webModels.PostPaginationCursor, limit int) ([]webModels.Post, *webModels.PostPaginationCursor, error) {
+	postIds, err := s.feedCacher.GetFeedPostsIds(ctx, userId, cursor, limit)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	posts, err := s.postRepo.GetPostsWithIds(ctx, postIds)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return posts, makeNewCursor(posts), nil
 }
