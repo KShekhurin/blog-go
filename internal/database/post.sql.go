@@ -68,6 +68,22 @@ func (q *Queries) AddPostMedia(ctx context.Context, arg AddPostMediaParams) erro
 	return err
 }
 
+const deletePost = `-- name: DeletePost :exec
+UPDATE posts
+SET deleted_at = $2
+WHERE id = $1
+`
+
+type DeletePostParams struct {
+	ID        uuid.UUID
+	DeletedAt pgtype.Timestamptz
+}
+
+func (q *Queries) DeletePost(ctx context.Context, arg DeletePostParams) error {
+	_, err := q.db.Exec(ctx, deletePost, arg.ID, arg.DeletedAt)
+	return err
+}
+
 const findLinkedPostMedia = `-- name: FindLinkedPostMedia :many
 SELECT id, post_id, type, mime_type, url, display_order FROM post_media
     WHERE post_id = $1

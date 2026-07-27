@@ -13,6 +13,7 @@ import (
 
 type FeedCacher interface {
 	PushToFeeds(ctx context.Context, postId uuid.UUID, createdAt time.Time, subsIds []uuid.UUID) error
+	RemoveFromFeeds(ctx context.Context, postId uuid.UUID, createdAt time.Time, subsIds []uuid.UUID) error
 	GetFeedPostsIds(ctx context.Context, userId uuid.UUID, cursor *webModels.PostPaginationCursor, limit int) ([]uuid.UUID, error)
 }
 
@@ -40,6 +41,21 @@ func (c *feedCacher) PushToFeeds(ctx context.Context, postId uuid.UUID, createdA
 				Score:  0, // identical for all members: ordering is purely lexicographic
 				Member: feedMember(createdAt, postId),
 			})
+	}
+
+	_, err := pipeline.Exec(ctx)
+
+	return err
+}
+
+func (c *feedCacher) RemoveFromFeeds(ctx context.Context, postId uuid.UUID, createdAt time.Time, subsIds []uuid.UUID) error {
+	pipeline := c.cache.Pipeline()
+
+	for _, subId := range subsIds {
+		pipeline.ZRem(ctx, fmt.Sprintf("user:%s:feed", subId), redis.Z{
+			Score:  0,
+			Member: feedMember(createdAt, postId),
+		})
 	}
 
 	_, err := pipeline.Exec(ctx)

@@ -102,7 +102,6 @@ definitions:
     - login
     - password
     type: object
-host: localhost:9090
 info:
   contact: {}
   description: This is the example of a twitter-like blog written on go
@@ -219,7 +218,9 @@ paths:
     post:
       consumes:
       - application/json
-      description: An API route to send a post, requires an access token
+      description: |-
+        An API route to send a post, requires an access token
+        Also pushes the post to user feeds in background
       parameters:
       - description: Post payload
         in: body
@@ -239,7 +240,32 @@ paths:
       summary: Send a post from the user
       tags:
       - posts
-  /user/{author_id}/subscriptions:
+  /post/{post_id}:
+    delete:
+      consumes:
+      - application/json
+      description: |-
+        An API route to delete a post, requires an access token
+        The post gets deleted_at field and is not avaliable for getting via api
+        Also removes post from users feeds
+      parameters:
+      - description: Post ID
+        format: uuid
+        in: path
+        name: post_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+      security:
+      - Bearer: []
+      summary: Delete post
+      tags:
+      - posts
+  /user/{author_id}/subs:
     delete:
       description: |-
         An API route to unsubscribe user with the author with the specified ID

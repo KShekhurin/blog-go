@@ -15,11 +15,12 @@ import (
 )
 
 type Config struct {
-	AppEnv      string
-	ServerPort  string
-	DatabaseURL string
-	RedisURL    string
-	JWTSecret   string
+	ServerPort       string
+	ServerDevAddress string
+	DatabaseURL      string
+	RedisURL         string
+	JWTSecret        string
+	IsRelease        string
 
 	PrivateKey ed25519.PrivateKey
 	PublicKey  ed25519.PublicKey
@@ -58,14 +59,13 @@ func fromStringToPrivateKey(keyString string) (ed25519.PrivateKey, error) {
 }
 
 func Load() (*Config, error) {
-	// Load .env file (only in development)
-	_ = godotenv.Load() // ignores error if .env doesn't exist
+	_ = godotenv.Load()
 
 	cfg := &Config{}
 
-	// You can use manual binding or use a library like envconfig / viper
-	cfg.AppEnv = getEnv("APP_ENV", "development")
 	cfg.ServerPort = getEnv("SERVER_PORT", "8080")
+	cfg.ServerDevAddress = getEnv("SERVER_DEV_ADDRESS", "localhost")
+	cfg.IsRelease = getEnv("IS_RELEASE", "0")
 	cfg.DatabaseURL = getEnv("DATABASE_URL", "")
 	cfg.RedisURL = getEnv("REDIS_URL", "")
 	cfg.JWTSecret = getEnv("JWT_SECRET", "")

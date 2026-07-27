@@ -22,7 +22,6 @@ import (
 //	@version		1.0.0
 //	@description	This is the example of a twitter-like blog written on go
 
-// @host						localhost:9090
 // @BasePath					/api/v1
 // @securityDefinitions.apikey	Bearer
 // @in							header
@@ -94,6 +93,7 @@ func CreateRouter(databaseConnect *db.Database, cfg *config.Config) *gin.Engine 
 		postGroup := v1.Group("/post")
 		{
 			postGroup.POST("", jwtMiddleware.Pass, postHandle.SendPost)
+			postGroup.DELETE(":post_id", jwtMiddleware.Pass, postHandle.DeletePostById)
 		}
 
 		feedGroup := v1.Group("/feed")
@@ -104,8 +104,8 @@ func CreateRouter(databaseConnect *db.Database, cfg *config.Config) *gin.Engine 
 		userGroup := v1.Group("/user")
 		{
 			userGroup.GET("/:user_id/posts", postHandle.GetPostsByUserId)
-			userGroup.POST("/:author_id/subscriptions", jwtMiddleware.Pass, userHandle.SubscribeTo)
-			userGroup.DELETE("/:author_id/subscriptions", jwtMiddleware.Pass, userHandle.UnsubscribeFrom)
+			userGroup.POST("/:author_id/subs", jwtMiddleware.Pass, userHandle.SubscribeTo)
+			userGroup.DELETE("/:author_id/subs", jwtMiddleware.Pass, userHandle.UnsubscribeFrom)
 		}
 	}
 	return router

@@ -2,21 +2,26 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/KShekhurin/blog-go/internal/repositories"
 	"github.com/KShekhurin/blog-go/internal/webModels"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 var (
-	ErrorPostWasDeleted = fmt.Errorf("post was deleted")
+	ErrorPostWasDeleted = errors.New("post was deleted")
+	ErrorDoesNotExist   = errors.New("post does not exist")
+	ErrorUnauthorized   = errors.New("unauthorized")
 )
 
 type PostService interface {
 	AddPost(ctx context.Context, request webModels.CreatePostRequest, authorId uuid.UUID) (*webModels.Post, error)
 	GetPostById(ctx context.Context, id uuid.UUID) (*webModels.Post, error)
+	RemovePostById(ctx context.Context, id uuid.UUID, userId uuid.UUID) (*webModels.Post, error)
 	GetPostsByAuthorId(ctx context.Context, authorId uuid.UUID, cursor *webModels.PostPaginationCursor, limit int) ([]webModels.Post, *webModels.PostPaginationCursor, error)
 }
 
@@ -28,6 +33,30 @@ func NewPostService(postRepo repositories.PostRepository) PostService {
 	return &postService{
 		postRepo: postRepo,
 	}
+}
+
+func (s *postService) RemovePostById(ctx context.Context, postId uuid.UUID, userId uuid.UUID) (*webModels.Post, error) {
+	post, err := s.postRepo.GetPostById(ctx, postId)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrorDoesNotExist
+		}
+		return nil, fmt.Errorf("failed to get post by id: %w", err)
+	}
+
+	if post.AuthorId != userId {
+		return nil, ErrorUnauthorized
+	}
+
+	deletedAt := time.Now()
+	post.DeletedAt = &deletedAt
+
+	err = s.postRepo.RemovePostById(ctx, postId, deletedAt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to remove post by id: %w", err)
+	}
+
+	return post, nil
 }
 
 func toAttachedMedia(request []webModels.CreateAttachedMedia, postId uuid.UUID) []webModels.AttachedMedia {

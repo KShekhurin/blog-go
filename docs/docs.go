@@ -185,7 +185,7 @@ const docTemplate = `{
                         "Bearer": []
                     }
                 ],
-                "description": "An API route to send a post, requires an access token",
+                "description": "An API route to send a post, requires an access token\nAlso pushes the post to user feeds in background",
                 "consumes": [
                     "application/json"
                 ],
@@ -217,7 +217,42 @@ const docTemplate = `{
                 }
             }
         },
-        "/user/{author_id}/subscriptions": {
+        "/post/{post_id}": {
+            "delete": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "An API route to delete a post, requires an access token\nThe post gets deleted_at field and is not avaliable for getting via api\nAlso removes post from users feeds",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "posts"
+                ],
+                "summary": "Delete post",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Post ID",
+                        "name": "post_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/user/{author_id}/subs": {
             "post": {
                 "security": [
                     {
@@ -488,7 +523,7 @@ const docTemplate = `{
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
 	Version:          "1.0.0",
-	Host:             "localhost:9090",
+	Host:             "",
 	BasePath:         "/api/v1",
 	Schemes:          []string{},
 	Title:            "Blog API",

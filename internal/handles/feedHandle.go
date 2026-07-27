@@ -1,16 +1,32 @@
 package handles
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 
-	"github.com/KShekhurin/blog-go/internal/middleware"
 	"github.com/KShekhurin/blog-go/internal/services"
 	"github.com/KShekhurin/blog-go/internal/webModels"
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
+
+func getCursorAndLimit(ctx *gin.Context) (*webModels.PostPaginationCursor, int, error) {
+	cursorEncodedStr := ctx.DefaultQuery("cursor", "")
+	limit, err := strconv.Atoi(ctx.DefaultQuery("limit", "10"))
+	if err != nil {
+		return nil, 0, err
+	}
+
+	var cursor *webModels.PostPaginationCursor = nil
+
+	if cursorEncodedStr != "" {
+		cursor, err = decodeCursor(cursorEncodedStr)
+		if err != nil {
+			return nil, 0, err
+		}
+	}
+
+	return cursor, limit, nil
+}
 
 type FeedHandle struct {
 	feedService services.FeedService
@@ -33,38 +49,21 @@ func NewFeedHandle(feedService services.FeedService) *FeedHandle {
 // @Success			200		{object}	webModels.PostPaginationResponse
 // @Router			/feed [get]
 func (h *FeedHandle) GetPosts(ctx *gin.Context) {
-	cursorEncodedStr := ctx.DefaultQuery("cursor", "")
-	limit, err := strconv.Atoi(ctx.DefaultQuery("limit", "10"))
+	cursor, limit, err := getCursorAndLimit(ctx)
 	if err != nil {
 		ctx.Error(err)
 		return
 	}
 
-	var cursor *webModels.PostPaginationCursor = nil
-
-	if cursorEncodedStr != "" {
-		cursor, err = decodeCursor(cursorEncodedStr)
-		if err != nil {
-			ctx.Error(err)
-			return
-		}
-	}
-
-	userId, exists := ctx.Get(middleware.UserIDKey)
-	if !exists {
-		ctx.Error(fmt.Errorf("user id was not found"))
-		return
-	}
-
-	userUuid, ok := userId.(uuid.UUID)
-	if !ok {
-		ctx.Error(fmt.Errorf("user id was not uuid"))
+	userId, err := getUserId(ctx)
+	if err != nil {
+		ctx.Error(err)
 		return
 	}
 
 	posts, cursor, err := h.feedService.GetFromFeed(
 		ctx.Request.Context(),
-		userUuid,
+		userId,
 		cursor,
 		limit)
 

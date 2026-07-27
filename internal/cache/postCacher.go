@@ -23,6 +23,7 @@ type CacherParams struct {
 type PostCacher interface {
 	AddPost(ctx context.Context, post *webModels.Post) error
 	AddPosts(ctx context.Context, posts []webModels.Post) error
+	RemovePostById(ctx context.Context, postId uuid.UUID, removeAt time.Time) error
 	GetPostsWithIds(ctx context.Context, ids []uuid.UUID) (fetchedPosts []webModels.Post, missedPostsIds []uuid.UUID, err error)
 }
 
@@ -38,11 +39,17 @@ func NewPostCacher(cache *redis.Client, params *CacherParams) PostCacher {
 	}
 }
 
+func (c *postCacher) RemovePostById(ctx context.Context, postId uuid.UUID, removeAt time.Time) error {
+	key := fmt.Sprintf("post:%v", postId)
+	err := c.cache.JSONSet(ctx, key, "$.deleted_at", removeAt).Err()
+	return err
+}
+
 func (c *postCacher) AddPost(ctx context.Context, post *webModels.Post) error {
 	key := fmt.Sprintf("post:%s", post.Id)
 
 	pipe := c.cache.Pipeline()
-	pipe.JSONSet(ctx, key, ".", *post)
+	pipe.JSONSet(ctx, key, "$", *post)
 	pipe.Expire(ctx, key, c.params.TTL)
 
 	_, err := pipe.Exec(ctx)
@@ -60,7 +67,7 @@ func (c *postCacher) GetPostsWithIds(ctx context.Context, ids []uuid.UUID) (fetc
 		keys = append(keys, fmt.Sprintf("post:%s", id))
 	}
 
-	results, err := c.cache.JSONMGet(ctx, ".", keys...).Result()
+	results, err := c.cache.JSONMGet(ctx, "$", keys...).Result()
 	if err != nil {
 		return nil, nil, fmt.Errorf("post fetch failed: %w", err)
 	}
@@ -79,12 +86,17 @@ func (c *postCacher) GetPostsWithIds(ctx context.Context, ids []uuid.UUID) (fetc
 			return nil, nil, fmt.Errorf("unexpected type for post %s: %T", ids[i], result)
 		}
 
-		var post webModels.Post
-		if err := json.Unmarshal([]byte(jsonStr), &post); err != nil {
+		var wrappedPosts []webModels.Post
+		if err := json.Unmarshal([]byte(jsonStr), &wrappedPosts); err != nil {
 			return nil, nil, fmt.Errorf("failed to unmarshal post %s: %w", ids[i], err)
 		}
 
-		posts = append(posts, post)
+		if len(wrappedPosts) == 0 {
+			missedPostsIds = append(missedPostsIds, ids[i])
+			continue
+		}
+
+		posts = append(posts, wrappedPosts[0])
 	}
 
 	return posts, missedPostsIds, nil

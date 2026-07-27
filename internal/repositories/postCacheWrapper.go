@@ -3,7 +3,9 @@ package repositories
 import (
 	"cmp"
 	"context"
+	"fmt"
 	"slices"
+	"time"
 
 	"github.com/KShekhurin/blog-go/internal/cache"
 	"github.com/KShekhurin/blog-go/internal/webModels"
@@ -20,6 +22,20 @@ func NewPostCacheWrapper(postRepo PostRepository, postCache cache.PostCacher) Po
 		postRepo:  postRepo,
 		postCache: postCache,
 	}
+}
+
+func (w *postCacheWrapper) RemovePostById(ctx context.Context, postId uuid.UUID, removeAt time.Time) error {
+	err := w.postRepo.RemovePostById(ctx, postId, removeAt)
+	if err != nil {
+		return fmt.Errorf("could not delete post: %w", err)
+	}
+
+	err = w.postCache.RemovePostById(ctx, postId, removeAt)
+	if err != nil { //TODO: cache failure != db one
+		return fmt.Errorf("could not update post in cache: %w", err)
+	}
+
+	return nil
 }
 
 func (w *postCacheWrapper) AddPost(ctx context.Context, post *webModels.Post) error {

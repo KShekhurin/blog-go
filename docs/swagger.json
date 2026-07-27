@@ -6,7 +6,6 @@
         "contact": {},
         "version": "1.0.0"
     },
-    "host": "localhost:9090",
     "basePath": "/api/v1",
     "paths": {
         "/auth/login": {
@@ -179,7 +178,7 @@
                         "Bearer": []
                     }
                 ],
-                "description": "An API route to send a post, requires an access token",
+                "description": "An API route to send a post, requires an access token\nAlso pushes the post to user feeds in background",
                 "consumes": [
                     "application/json"
                 ],
@@ -211,7 +210,42 @@
                 }
             }
         },
-        "/user/{author_id}/subscriptions": {
+        "/post/{post_id}": {
+            "delete": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "An API route to delete a post, requires an access token\nThe post gets deleted_at field and is not avaliable for getting via api\nAlso removes post from users feeds",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "posts"
+                ],
+                "summary": "Delete post",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Post ID",
+                        "name": "post_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/user/{author_id}/subs": {
             "post": {
                 "security": [
                     {

@@ -61,6 +61,7 @@ func toAddPostAttachmentsParams(attachments []webModels.AttachedMedia) []databas
 
 type PostRepository interface {
 	AddPost(ctx context.Context, post *webModels.Post) error
+	RemovePostById(ctx context.Context, postId uuid.UUID, removeAt time.Time) error
 	GetPostById(ctx context.Context, id uuid.UUID) (*webModels.Post, error)
 	GetPostsWithIds(ctx context.Context, ids []uuid.UUID) ([]webModels.Post, error)
 	GetPostsByAuthorId(ctx context.Context, authorId uuid.UUID, cursor *webModels.PostPaginationCursor, limit int) ([]webModels.Post, *webModels.PostPaginationCursor, error)
@@ -76,6 +77,18 @@ func NewPostRepository(pool *pgxpool.Pool) PostRepository {
 		pool:  pool,
 		query: database.New(pool),
 	}
+}
+
+func (r *postRepository) RemovePostById(ctx context.Context, postId uuid.UUID, removeAt time.Time) error {
+	err := r.query.DeletePost(ctx, database.DeletePostParams{
+		ID: postId,
+		DeletedAt: pgtype.Timestamptz{
+			Time:  removeAt,
+			Valid: true,
+		},
+	})
+
+	return err
 }
 
 func (r *postRepository) AddPost(ctx context.Context, post *webModels.Post) error {

@@ -3,9 +3,9 @@ package handles
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 
 	"github.com/KShekhurin/blog-go/internal/middleware"
 	"github.com/KShekhurin/blog-go/internal/services"
@@ -51,6 +51,20 @@ func encodeCursor(cursor *webModels.PostPaginationCursor) (string, error) {
 	return cursorEncodedStr, nil
 }
 
+func getUserId(ctx *gin.Context) (uuid.UUID, error) {
+	userId, exists := ctx.Get(middleware.UserIDKey)
+	if !exists {
+		return uuid.Nil, errors.New("user id not found")
+	}
+
+	userUuid, ok := userId.(uuid.UUID)
+	if !ok {
+		return uuid.Nil, fmt.Errorf("user id was not uuid")
+	}
+
+	return userUuid, nil
+}
+
 type PostsHandle struct {
 	postService services.PostService
 	feedService services.FeedService
@@ -74,48 +88,38 @@ func NewPostsHandle(postService services.PostService, feedService services.FeedS
 // @Success			200		{object}	webModels.PostPaginationResponse
 // @Router			/user/{user_id}/posts [get]
 func (h *PostsHandle) GetPostsByUserId(ctx *gin.Context) {
-	cursorEncodedStr := ctx.DefaultQuery("cursor", "")
-	limit, err := strconv.Atoi(ctx.DefaultQuery("limit", "10"))
-	if err != nil {
-		ctx.Error(err)
-		return
-	}
-
 	userId, err := uuid.Parse(ctx.Param("userId"))
 	if err != nil {
 		ctx.Error(err)
 		return
 	}
 
-	var cursor *webModels.PostPaginationCursor = nil
-
-	if cursorEncodedStr != "" {
-		cursor, err = decodeCursor(cursorEncodedStr)
-		if err != nil {
-			ctx.Error(err)
-			return
-		}
-	}
-
-	posts, cursor, err := h.postService.GetPostsByAuthorId(ctx, userId, cursor, limit)
+	cursor, limit, err := getCursorAndLimit(ctx)
 	if err != nil {
 		ctx.Error(err)
 		return
 	}
 
-	encodedCursor, err := encodeCursor(cursor)
+	posts, newCursor, err := h.postService.GetPostsByAuthorId(ctx, userId, cursor, limit)
+	if err != nil {
+		ctx.Error(err)
+		return
+	}
+
+	encodedNewCursor, err := encodeCursor(newCursor)
 	if err != nil {
 		ctx.Error(err)
 	}
 
 	ctx.JSON(http.StatusOK, webModels.PostPaginationResponse{
 		Posts:  posts,
-		Cursor: encodedCursor,
+		Cursor: encodedNewCursor,
 	})
 }
 
 // @Summary			Send a post from the user
 // @Description		An API route to send a post, requires an access token
+// @Description 	Also pushes the post to user feeds in background
 // @Tags			posts
 // @Accept			json
 // @Produce			json
@@ -124,15 +128,9 @@ func (h *PostsHandle) GetPostsByUserId(ctx *gin.Context) {
 // @Success			200			{object}	webModels.Post
 // @Router			/post [post]
 func (h *PostsHandle) SendPost(ctx *gin.Context) {
-	userId, exists := ctx.Get(middleware.UserIDKey)
-	if !exists {
-		ctx.Error(fmt.Errorf("user id was not found"))
-		return
-	}
-
-	userUuid, ok := userId.(uuid.UUID)
-	if !ok {
-		ctx.Error(fmt.Errorf("user id was not uuid"))
+	userId, err := getUserId(ctx)
+	if err != nil {
+		ctx.Error(err)
 		return
 	}
 
@@ -143,7 +141,7 @@ func (h *PostsHandle) SendPost(ctx *gin.Context) {
 		return
 	}
 
-	post, err := h.postService.AddPost(ctx, postInput, userUuid)
+	post, err := h.postService.AddPost(ctx, postInput, userId)
 	if err != nil {
 		ctx.Error(err)
 		return
@@ -156,4 +154,42 @@ func (h *PostsHandle) SendPost(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, post)
+}
+
+// @Summary			Delete post
+// @Description		An API route to delete a post, requires an access token
+// @Description 	The post gets deleted_at field and is not avaliable for getting via api
+// @Description		Also removes post from users feeds
+// @Tags			posts
+// @Accept			json
+// @Produce			json
+// @Security		Bearer
+// @Param 			post_id		path		string	true	"Post ID"	Format(uuid)	example:"550e8400-e29b-41d4-a716-446655440000"
+// @Success			204			"No Content"
+// @Router			/post/{post_id} [delete]
+func (h *PostsHandle) DeletePostById(ctx *gin.Context) {
+	userId, err := getUserId(ctx)
+	if err != nil {
+		ctx.Error(err)
+		return
+	}
+
+	postId, err := uuid.Parse(ctx.Param("post_id"))
+	if err != nil {
+		ctx.Error(err)
+		return
+	}
+
+	deletedPost, err := h.postService.RemovePostById(ctx.Request.Context(), postId, userId)
+	if err != nil {
+		ctx.Error(err)
+		return
+	}
+
+	err = h.feedService.RemoveFromFeeds(deletedPost)
+	if err != nil {
+		ctx.Error(err)
+	}
+
+	ctx.JSON(http.StatusNoContent, gin.H{})
 }

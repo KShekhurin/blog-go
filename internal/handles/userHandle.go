@@ -27,7 +27,7 @@ func NewUserHandler(userService services.UserService) *UserHandle {
 // @Security 	Bearer
 // @Param		author_id	path		string	true	"Author ID"	Format(uuid)	example:"550e8400-e29b-41d4-a716-446655440000"
 // @Success		204    "No Content"
-// @Router		/user/{author_id}/subscriptions [post]
+// @Router		/user/{author_id}/subs [post]
 func (h *UserHandle) SubscribeTo(ctx *gin.Context) {
 	//TODO: handle errors
 	userId, exists := ctx.Get(middleware.UserIDKey)
@@ -58,7 +58,7 @@ func (h *UserHandle) SubscribeTo(ctx *gin.Context) {
 // @Security 	Bearer
 // @Param		author_id	path		string	true	"Author ID"	Format(uuid)	example:"550e8400-e29b-41d4-a716-446655440000"
 // @Success		204    "No Content"
-// @Router		/user/{author_id}/subscriptions [delete]
+// @Router		/user/{author_id}/subs [delete]
 func (h *UserHandle) UnsubscribeFrom(ctx *gin.Context) {
 	//TODO: handle errors
 	userId, exists := ctx.Get(middleware.UserIDKey)

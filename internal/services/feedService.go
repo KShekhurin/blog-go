@@ -16,8 +16,21 @@ var (
 	ErrorFeedQueueIsFull = errors.New("feed queue is full")
 )
 
+type state int
+
+const (
+	pushToFeed = iota
+	removeFromFeed
+)
+
+type postAction struct {
+	action state
+	post   *webModels.Post
+}
+
 type FeedService interface {
 	PushToFeeds(post *webModels.Post) error
+	RemoveFromFeeds(post *webModels.Post) error
 	GetFromFeed(ctx context.Context, userId uuid.UUID, cursor *webModels.PostPaginationCursor, limit int) ([]webModels.Post, *webModels.PostPaginationCursor, error)
 	Close()
 }
@@ -31,7 +44,7 @@ type feedService struct {
 	feedCacher cache.FeedCacher
 	userRepo   repositories.UserRepository
 	postRepo   repositories.PostRepository
-	wp         workpool.WorkPool[*webModels.Post]
+	wp         workpool.WorkPool[postAction]
 	feedParams *FeedParams
 }
 
@@ -43,7 +56,7 @@ func NewFeedService(feedCacher cache.FeedCacher, userRepo repositories.UserRepos
 		feedParams: feedParams,
 	}
 
-	wp := workpool.NewWorkPool(feedParams.WpParams, s.pushToFeedHandle)
+	wp := workpool.NewWorkPool(feedParams.WpParams, s.handlePost)
 
 	s.wp = wp
 
@@ -54,12 +67,36 @@ func (s *feedService) Close() {
 	s.wp.Close()
 }
 
-func (s *feedService) pushToFeedHandle(post *webModels.Post) {
+func (s *feedService) handlePost(postAct postAction) {
 	ctx, cancel := context.WithTimeout(
 		context.Background(),
 		s.feedParams.Timeout)
+
 	defer cancel()
 
+	switch postAct.action {
+	case pushToFeed:
+		s.pushToFeedHandle(ctx, postAct.post)
+	case removeFromFeed:
+		s.removeFromFeed(ctx, postAct.post)
+	}
+
+}
+
+func (s *feedService) removeFromFeed(ctx context.Context, post *webModels.Post) {
+	subs, err := s.userRepo.GetSubs(ctx, post.AuthorId)
+
+	if err != nil {
+		return
+	}
+
+	err = s.feedCacher.RemoveFromFeeds(ctx, post.Id, post.CreatedAt, subs)
+	if err != nil {
+		return
+	}
+}
+
+func (s *feedService) pushToFeedHandle(ctx context.Context, post *webModels.Post) {
 	subs, err := s.userRepo.GetSubs(ctx, post.AuthorId)
 
 	if err != nil {
@@ -70,7 +107,14 @@ func (s *feedService) pushToFeedHandle(post *webModels.Post) {
 }
 
 func (s *feedService) PushToFeeds(post *webModels.Post) error {
-	if !s.wp.TryPush(post) {
+	if !s.wp.TryPush(postAction{pushToFeed, post}) {
+		return ErrorFeedQueueIsFull
+	}
+	return nil
+}
+
+func (s *feedService) RemoveFromFeeds(post *webModels.Post) error {
+	if !s.wp.TryPush(postAction{pushToFeed, post}) {
 		return ErrorFeedQueueIsFull
 	}
 	return nil

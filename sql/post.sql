@@ -38,3 +38,8 @@ INSERT INTO post_media
     (id, post_id, type, mime_type, url, display_order)
 VALUES
     ($1, $2, $3, $4, $5, $6);
+
+-- name: DeletePost :exec
+UPDATE posts
+SET deleted_at = $2
+WHERE id = $1;

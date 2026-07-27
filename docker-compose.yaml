@@ -1,0 +1,55 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: web
+    restart: on-failure
+    ports:
+      - "9090:9090"
+    environment:
+      IS_RELEASE: 1
+      SERVER_PORT: 9090
+      DATABASE_URL: postgres://root:password@db:5432/blog_db
+      REDIS_URL: redis://default:password@redis:6379/0?protocol=2
+      JWT_SECRET: |
+        -----BEGIN PRIVATE KEY-----
+        MC4CAQAwBQYDK2VwBCIEIMQZ9a3SNmoJuuGTVwVPquqAj8IYXF79bQ3mSjq1ZJEN
+        -----END PRIVATE KEY-----
+    depends_on:
+      migration:
+        condition: service_completed_successfully
+      redis:
+        condition: service_started
+  migration:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: build
+    command: goose up
+    restart: "no"
+    environment:
+      GOOSE_DRIVER: postgres
+      GOOSE_DBSTRING: postgres://root:password@db:5432/blog_db
+      GOOSE_MIGRATION_DIR: ./migrations
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+  redis:
+    image: redis:latest
+    command: redis-server /usr/local/etc/redis/redis.conf
+    volumes:
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+  db:
+    image: postgres:latest
+    environment:
+      POSTGRES_PASSWORD: password
+      POSTGRES_USER: root
+      POSTGRES_DB: blog_db
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U root -d blog_db" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
