@@ -125,15 +125,15 @@ func (repo *userRepository) SubscribeUserTo(ctx context.Context, sub_id uuid.UUI
 }
 
 func (repo *userRepository) UnsubscribeUserFrom(ctx context.Context, sub_id uuid.UUID, auth_id uuid.UUID) error {
-	err := repo.queries.UnsubscribeUserFrom(
+	cnt, err := repo.queries.UnsubscribeUserFrom(
 		ctx,
 		database.UnsubscribeUserFromParams{
 			sub_id,
 			auth_id,
 		})
 
-	if IsUniqueViolation(err) {
-		return ErrorUniqueViolation
+	if cnt == 0 {
+		return ErrorDoesNotExist
 	}
 
 	return err

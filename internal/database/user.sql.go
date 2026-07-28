@@ -146,7 +146,7 @@ func (q *Queries) SubscribeUserTo(ctx context.Context, arg SubscribeUserToParams
 	return err
 }
 
-const unsubscribeUserFrom = `-- name: UnsubscribeUserFrom :exec
+const unsubscribeUserFrom = `-- name: UnsubscribeUserFrom :execrows
 DELETE FROM subscriber_author
        WHERE sub_id = $1 AND auth_id = $2
 `
@@ -156,7 +156,10 @@ type UnsubscribeUserFromParams struct {
 	AuthID uuid.UUID
 }
 
-func (q *Queries) UnsubscribeUserFrom(ctx context.Context, arg UnsubscribeUserFromParams) error {
-	_, err := q.db.Exec(ctx, unsubscribeUserFrom, arg.SubID, arg.AuthID)
-	return err
+func (q *Queries) UnsubscribeUserFrom(ctx context.Context, arg UnsubscribeUserFromParams) (int64, error) {
+	result, err := q.db.Exec(ctx, unsubscribeUserFrom, arg.SubID, arg.AuthID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

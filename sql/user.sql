@@ -22,7 +22,7 @@ INSERT INTO users (id, login, email, password_hash)
 INSERT INTO subscriber_author (sub_id, auth_id)
        VALUES ($1, $2);
 
--- name: UnsubscribeUserFrom :exec
+-- name: UnsubscribeUserFrom :execrows
 DELETE FROM subscriber_author
        WHERE sub_id = $1 AND auth_id = $2;
 

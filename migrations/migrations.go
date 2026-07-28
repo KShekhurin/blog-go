@@ -1,17 +1,24 @@
+//go:build integration
+
 package migrations
 
 import (
 	"context"
 	"embed"
 	_ "embed"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
+	"github.com/moby/moby/api/types/network"
 	"github.com/pressly/goose/v3"
 	"github.com/redis/go-redis/v9"
+	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	redisCont "github.com/testcontainers/testcontainers-go/modules/redis"
+	"github.com/testcontainers/testcontainers-go/wait"
 )
 
 //go:embed *.sql
@@ -32,6 +39,18 @@ func SetupPostgres(ctx context.Context, t testing.TB) *pgxpool.Pool {
 		postgres.WithDatabase(PostgresDbName),
 		postgres.WithUsername(PostgresUser),
 		postgres.WithPassword(PostgresPassword),
+		testcontainers.WithWaitStrategy(
+			wait.ForSQL(
+				"5432/tcp",
+				"pgx",
+				func(host string, port network.Port) string {
+					return fmt.Sprintf(
+						"postgres://%s:%s@%s:%s/%s?sslmode=disable",
+						PostgresUser, PostgresPassword, host, port.Port(), PostgresDbName,
+					)
+				},
+			).WithStartupTimeout(60*time.Second),
+		),
 	)
 	if err != nil {
 		t.Fatalf("failed to start container: %v", err)
