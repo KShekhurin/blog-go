@@ -80,13 +80,17 @@ func NewPostRepository(pool *pgxpool.Pool) PostRepository {
 }
 
 func (r *postRepository) RemovePostById(ctx context.Context, postId uuid.UUID, removeAt time.Time) error {
-	err := r.query.DeletePost(ctx, database.DeletePostParams{
+	cnt, err := r.query.DeletePost(ctx, database.DeletePostParams{
 		ID: postId,
 		DeletedAt: pgtype.Timestamptz{
 			Time:  removeAt,
 			Valid: true,
 		},
 	})
+
+	if cnt == 0 {
+		return fmt.Errorf("Post with if %s does not exit: %w", postId, ErrorDoesNotExist)
+	}
 
 	return err
 }

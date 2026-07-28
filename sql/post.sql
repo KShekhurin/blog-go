@@ -9,13 +9,15 @@ SELECT * FROM post_media
 -- name: FindUserPosts :many
 SELECT * FROM posts
     WHERE author_id = $1
+      AND deleted_at IS NULL
     ORDER BY created_at DESC, id DESC
     LIMIT $2;
 
 -- name: FindUserPostsWithCursor :many
 SELECT * FROM posts
     WHERE author_id = $1
-        AND (created_at, id) < (sqlc.arg(last_created_at), sqlc.arg(last_id)::uuid)
+      AND deleted_at IS NULL
+      AND (created_at, id) < (sqlc.arg(last_created_at), sqlc.arg(last_id)::uuid)
     ORDER BY created_at DESC, id DESC
     LIMIT $2;
 
@@ -25,7 +27,8 @@ SELECT * FROM post_media
 
 -- name: FindPostsByIds :many
 SELECT * FROM posts
-    WHERE id = ANY($1::uuid[]);
+    WHERE id = ANY($1::uuid[])
+    AND deleted_at IS NULL;
 
 -- name: AddPost :exec
 INSERT INTO posts
@@ -39,7 +42,7 @@ INSERT INTO post_media
 VALUES
     ($1, $2, $3, $4, $5, $6);
 
--- name: DeletePost :exec
+-- name: DeletePost :execrows
 UPDATE posts
 SET deleted_at = $2
 WHERE id = $1;

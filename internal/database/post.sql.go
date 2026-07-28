@@ -68,7 +68,7 @@ func (q *Queries) AddPostMedia(ctx context.Context, arg AddPostMediaParams) erro
 	return err
 }
 
-const deletePost = `-- name: DeletePost :exec
+const deletePost = `-- name: DeletePost :execrows
 UPDATE posts
 SET deleted_at = $2
 WHERE id = $1
@@ -79,9 +79,12 @@ type DeletePostParams struct {
 	DeletedAt pgtype.Timestamptz
 }
 
-func (q *Queries) DeletePost(ctx context.Context, arg DeletePostParams) error {
-	_, err := q.db.Exec(ctx, deletePost, arg.ID, arg.DeletedAt)
-	return err
+func (q *Queries) DeletePost(ctx context.Context, arg DeletePostParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deletePost, arg.ID, arg.DeletedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const findLinkedPostMedia = `-- name: FindLinkedPostMedia :many
@@ -138,6 +141,7 @@ func (q *Queries) FindPostById(ctx context.Context, id uuid.UUID) (Post, error) 
 const findPostsByIds = `-- name: FindPostsByIds :many
 SELECT id, author_id, reply_to, content, created_at, deleted_at FROM posts
     WHERE id = ANY($1::uuid[])
+    AND deleted_at IS NULL
 `
 
 func (q *Queries) FindPostsByIds(ctx context.Context, dollar_1 []uuid.UUID) ([]Post, error) {
@@ -202,6 +206,7 @@ func (q *Queries) FindPostsMedias(ctx context.Context, dollar_1 []uuid.UUID) ([]
 const findUserPosts = `-- name: FindUserPosts :many
 SELECT id, author_id, reply_to, content, created_at, deleted_at FROM posts
     WHERE author_id = $1
+      AND deleted_at IS NULL
     ORDER BY created_at DESC, id DESC
     LIMIT $2
 `
@@ -241,7 +246,8 @@ func (q *Queries) FindUserPosts(ctx context.Context, arg FindUserPostsParams) ([
 const findUserPostsWithCursor = `-- name: FindUserPostsWithCursor :many
 SELECT id, author_id, reply_to, content, created_at, deleted_at FROM posts
     WHERE author_id = $1
-        AND (created_at, id) < ($3, $4::uuid)
+      AND deleted_at IS NULL
+      AND (created_at, id) < ($3, $4::uuid)
     ORDER BY created_at DESC, id DESC
     LIMIT $2
 `
