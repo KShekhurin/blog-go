@@ -66,8 +66,8 @@ func (repo *userRepository) FindUserByLoginOrEmail(ctx context.Context, login st
 	user, err := repo.queries.FindUserByLoginOrEmail(
 		ctx,
 		database.FindUserByLoginOrEmailParams{
-			login,
-			email,
+			Login: login,
+			Email: email,
 		})
 
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -109,12 +109,12 @@ func (repo *userRepository) GetSubs(ctx context.Context, userId uuid.UUID) ([]uu
 	return ids, nil
 }
 
-func (repo *userRepository) SubscribeUserTo(ctx context.Context, sub_id uuid.UUID, auth_id uuid.UUID) error {
+func (repo *userRepository) SubscribeUserTo(ctx context.Context, subId uuid.UUID, authId uuid.UUID) error {
 	err := repo.queries.SubscribeUserTo(
 		ctx,
 		database.SubscribeUserToParams{
-			sub_id,
-			auth_id,
+			SubID:  subId,
+			AuthID: authId,
 		})
 
 	if IsUniqueViolation(err) {
@@ -124,12 +124,12 @@ func (repo *userRepository) SubscribeUserTo(ctx context.Context, sub_id uuid.UUI
 	return err
 }
 
-func (repo *userRepository) UnsubscribeUserFrom(ctx context.Context, sub_id uuid.UUID, auth_id uuid.UUID) error {
+func (repo *userRepository) UnsubscribeUserFrom(ctx context.Context, subId uuid.UUID, authId uuid.UUID) error {
 	cnt, err := repo.queries.UnsubscribeUserFrom(
 		ctx,
 		database.UnsubscribeUserFromParams{
-			sub_id,
-			auth_id,
+			SubID:  subId,
+			AuthID: authId,
 		})
 
 	if cnt == 0 {
