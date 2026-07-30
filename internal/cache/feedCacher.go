@@ -52,10 +52,10 @@ func (c *feedCacher) RemoveFromFeeds(ctx context.Context, postId uuid.UUID, crea
 	pipeline := c.cache.Pipeline()
 
 	for _, subId := range subsIds {
-		pipeline.ZRem(ctx, fmt.Sprintf("user:%s:feed", subId), redis.Z{
-			Score:  0,
-			Member: feedMember(createdAt, postId),
-		})
+		pipeline.ZRem(ctx,
+			fmt.Sprintf("user:%s:feed", subId),
+			feedMember(createdAt, postId),
+		)
 	}
 
 	_, err := pipeline.Exec(ctx)

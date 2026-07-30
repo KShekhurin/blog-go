@@ -14,6 +14,7 @@ import (
 
 var (
 	ErrorPostFetchFailed = errors.New("post fetch failed")
+	ErrorAlreadyDeleted  = errors.New("already deleted")
 )
 
 type CacherParams struct {
@@ -40,8 +41,29 @@ func NewPostCacher(cache *redis.Client, params *CacherParams) PostCacher {
 }
 
 func (c *postCacher) RemovePostById(ctx context.Context, postId uuid.UUID, removeAt time.Time) error {
+	//NOTE: It is a data race but its not critical in terms or caching
+
 	key := fmt.Sprintf("post:%v", postId)
-	err := c.cache.JSONSet(ctx, key, "$.deleted_at", removeAt).Err()
+	jsonType, err := c.cache.JSONType(ctx, key, "$").Result()
+
+	if err != nil {
+		return err
+	}
+	if len(jsonType) == 0 || jsonType[0] == nil {
+		return nil
+	}
+
+	deletedAt, err := c.cache.JSONType(ctx, key, "$.deleted_at").Result()
+
+	if err != nil {
+		return err
+	}
+	if len(deletedAt) > 0 && deletedAt[0] != nil {
+		return fmt.Errorf("could not delete post: %w", ErrorAlreadyDeleted)
+	}
+
+	err = c.cache.JSONSet(ctx, key, "$.deleted_at", removeAt).Err()
+
 	return err
 }
 
@@ -96,7 +118,9 @@ func (c *postCacher) GetPostsWithIds(ctx context.Context, ids []uuid.UUID) (fetc
 			continue
 		}
 
-		posts = append(posts, wrappedPosts[0])
+		if wrappedPosts[0].DeletedAt == nil { //Exclude deleted posts from user access
+			posts = append(posts, wrappedPosts[0])
+		}
 	}
 
 	return posts, missedPostsIds, nil
