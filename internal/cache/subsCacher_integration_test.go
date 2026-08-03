@@ -145,7 +145,7 @@ func TestGetSubs(t *testing.T) {
 		}
 		require.NoError(t, client.SAdd(ctx, followersKey(userId), members...).Err())
 
-		got, err := cacher.GetSubs(ctx, userId)
+		got, err := cacher.GetFollows(ctx, userId)
 		require.NoError(t, err)
 		require.ElementsMatch(t, subs, got)
 	})
@@ -162,7 +162,7 @@ func TestGetSubs(t *testing.T) {
 		require.NoError(t, client.SAdd(ctx, followersKey(userId), subId.String()).Err())
 		require.NoError(t, client.SRem(ctx, followersKey(userId), subId.String()).Err())
 
-		_, err := cacher.GetSubs(ctx, userId)
+		_, err := cacher.GetFollows(ctx, userId)
 		require.ErrorIs(t, err, errs.ErrNotFound)
 	})
 
@@ -170,7 +170,7 @@ func TestGetSubs(t *testing.T) {
 		t.Parallel()
 		cacher, _, ctx := setupSubsCacherTest(t)
 
-		_, err := cacher.GetSubs(ctx, uuid.New())
+		_, err := cacher.GetFollows(ctx, uuid.New())
 		require.ErrorIs(t, err, errs.ErrNotFound)
 	})
 }

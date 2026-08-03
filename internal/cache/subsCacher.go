@@ -12,7 +12,10 @@ import (
 type SubsCacher interface {
 	SubscribeUserTo(ctx context.Context, subId uuid.UUID, authId uuid.UUID) error
 	UnsubscribeUserFrom(ctx context.Context, subId uuid.UUID, authId uuid.UUID) error
-	GetSubs(ctx context.Context, authId uuid.UUID) ([]uuid.UUID, error)
+	FollowListExists(ctx context.Context, authId uuid.UUID) (bool, error)
+	SubsListExists(ctx context.Context, subId uuid.UUID) (bool, error)
+	SetFollows(ctx context.Context, authId uuid.UUID, subIds []uuid.UUID) error
+	GetFollows(ctx context.Context, authId uuid.UUID) ([]uuid.UUID, error)
 }
 
 type subsCacher struct {
@@ -23,6 +26,23 @@ func NewSubsCacher(client *redis.Client) SubsCacher {
 	return &subsCacher{
 		cache: client,
 	}
+}
+
+func (c *subsCacher) FollowListExists(ctx context.Context, authId uuid.UUID) (bool, error) {
+	subsKey := fmt.Sprintf("user:%s:followers", authId)
+
+	exists, err := c.cache.Exists(ctx, subsKey).Result()
+
+	if err != nil {
+		return false, err
+	}
+
+	return exists > 0, nil
+}
+
+func (c *subsCacher) SubsListExists(ctx context.Context, subId uuid.UUID) (bool, error) {
+	//TODO implement me
+	panic("implement me")
 }
 
 func (c *subsCacher) SubscribeUserTo(ctx context.Context, subId uuid.UUID, authId uuid.UUID) error {
@@ -53,7 +73,7 @@ func (c *subsCacher) UnsubscribeUserFrom(ctx context.Context, subId uuid.UUID, a
 	return err
 }
 
-func (c *subsCacher) GetSubs(ctx context.Context, userId uuid.UUID) ([]uuid.UUID, error) {
+func (c *subsCacher) GetFollows(ctx context.Context, userId uuid.UUID) ([]uuid.UUID, error) {
 	subsKey := fmt.Sprintf("user:%s:followers", userId)
 
 	exists, err := c.cache.Exists(ctx, subsKey).Result()
@@ -63,7 +83,7 @@ func (c *subsCacher) GetSubs(ctx context.Context, userId uuid.UUID) ([]uuid.UUID
 	if exists == 0 {
 		return []uuid.UUID{}, &errs.NotFoundError{
 			ID:       subsKey,
-			Resource: "GetSubs",
+			Resource: "GetFollows",
 		}
 	}
 
@@ -82,4 +102,21 @@ func (c *subsCacher) GetSubs(ctx context.Context, userId uuid.UUID) ([]uuid.UUID
 	}
 
 	return subIds, nil
+}
+
+func (c *subsCacher) SetFollows(ctx context.Context, authId uuid.UUID, subIds []uuid.UUID) error {
+	if len(subIds) == 0 {
+		return nil
+	}
+
+	followsKey := fmt.Sprintf("user:%s:followers", authId)
+
+	subIdsStr := make([]interface{}, 0, len(subIds))
+	for _, subId := range subIds {
+		subIdsStr = append(subIdsStr, subId.String())
+	}
+
+	err := c.cache.SAdd(ctx, followsKey, subIdsStr...).Err()
+
+	return err
 }

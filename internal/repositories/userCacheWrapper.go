@@ -3,15 +3,18 @@ package repositories
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 
 	"github.com/KShekhurin/blog-go/internal/cache"
 	"github.com/KShekhurin/blog-go/internal/database"
 	"github.com/KShekhurin/blog-go/internal/errs"
 	"github.com/google/uuid"
+	"golang.org/x/sync/singleflight"
 )
 
 type userCacheWrapper struct {
+	getSubsSF singleflight.Group
 	userRepo  UserRepository
 	subsCache cache.SubsCacher
 }
@@ -45,15 +48,34 @@ func (w *userCacheWrapper) SubscribeUserTo(ctx context.Context, subId uuid.UUID,
 		return err
 	}
 
-	err = w.subsCache.SubscribeUserTo(ctx, subId, authId)
+	exists, err := w.subsCache.FollowListExists(ctx, authId)
+
 	if err != nil {
-		//If addition fails we should invalidate all list
+		//If existence check fails we should invalidate all list
 		//Cache no longer in sync with the db
 		slog.ErrorContext(ctx, "UnsubscribeUserFrom", slog.Any("err", err))
-		return err
+
+		return nil
 	}
 
-	return nil
+	if exists {
+		err = w.subsCache.SubscribeUserTo(ctx, subId, authId)
+		if err != nil {
+			//If existence check fails we should invalidate all list
+			//Cache no longer in sync with the db
+			slog.ErrorContext(ctx, "SubscribeUserTo", slog.Any("err", err))
+		}
+		return nil
+	}
+
+	res := w.getSubsSF.DoChan(authId.String(), w.tryToCacheSubs(authId))
+
+	select {
+	case r := <-res:
+		return r.Err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 func (w *userCacheWrapper) UnsubscribeUserFrom(ctx context.Context, subId uuid.UUID, authId uuid.UUID) error {
@@ -63,29 +85,94 @@ func (w *userCacheWrapper) UnsubscribeUserFrom(ctx context.Context, subId uuid.U
 		return err
 	}
 
-	err = w.subsCache.UnsubscribeUserFrom(ctx, subId, authId)
+	exists, err := w.subsCache.FollowListExists(ctx, authId)
 
 	if err != nil {
-		//If removal fails we should invalidate all list
+		//If existence check fails we should invalidate all list
 		//Cache no longer in sync with the db
 		slog.ErrorContext(ctx, "UnsubscribeUserFrom", slog.Any("err", err))
-		return err
+
+		return nil
 	}
 
-	return err
+	if exists {
+		err = w.subsCache.UnsubscribeUserFrom(ctx, subId, authId)
+		if err != nil {
+			//If existence check fails we should invalidate all list
+			//Cache no longer in sync with the db
+			slog.ErrorContext(ctx, "UnsubscribeUserFrom", slog.Any("err", err))
+		}
+		return nil
+	}
+
+	res := w.getSubsSF.DoChan(authId.String(), w.tryToCacheSubs(authId))
+
+	select {
+	case r := <-res:
+		return r.Err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
-func (w *userCacheWrapper) GetSubs(ctx context.Context, userId uuid.UUID) ([]uuid.UUID, error) {
-	subs, err := w.subsCache.GetSubs(ctx, userId)
+func (w *userCacheWrapper) tryToCacheSubs(authId uuid.UUID) func() (any, error) {
+	return func() (any, error) {
+		ctx := context.Background()
 
-	if errors.Is(err, errs.ErrNotFound) {
-		subs, err = w.userRepo.GetSubs(ctx, userId)
+		//Check again in case we visited after cache.GetFollows returned error
+		//but other goroutine had already refreshed cache and the channel had being closed
+		subs, err := w.subsCache.GetFollows(ctx, authId)
+		if err == nil {
+			return subs, nil
+		}
+
+		//a failed get should not invalidate a get from repo
+		if !errors.Is(err, errs.ErrNotFound) {
+			slog.ErrorContext(ctx, "tryToCacheSubs: cache get", slog.Any("err", err))
+		}
+
+		subs, err = w.userRepo.GetSubs(ctx, authId)
 		if err != nil {
 			return nil, err
 		}
-	} else if err != nil {
-		slog.ErrorContext(ctx, "GetSubs", "msg", slog.Any("err", err))
+
+		//Put data from repo to cache; a failed set doesn't invalidate the data
+		err = w.subsCache.SetFollows(ctx, authId, subs)
+		if err != nil {
+			slog.ErrorContext(ctx, "tryToCacheSubs: cache set", slog.Any("err", err))
+		}
+
+		return subs, nil
+	}
+}
+
+func (w *userCacheWrapper) GetSubs(ctx context.Context, userId uuid.UUID) ([]uuid.UUID, error) {
+	subs, err := w.subsCache.GetFollows(ctx, userId)
+
+	if err == nil {
+		return subs, nil
 	}
 
-	return subs, nil
+	if !errors.Is(err, errs.ErrNotFound) {
+		//Cache is broken, fall back to the repo instead of returning empty data
+		slog.ErrorContext(ctx, "GetFollows: cache get", slog.Any("err", err))
+	}
+
+	res := w.getSubsSF.DoChan(userId.String(), w.tryToCacheSubs(userId))
+
+	select {
+	case r := <-res:
+		if r.Err != nil {
+			return nil, r.Err
+		}
+
+		subs, ok := r.Val.([]uuid.UUID)
+		if !ok {
+			return nil, fmt.Errorf("GetFollows: unexpected singleflight result type %T", r.Val)
+		}
+
+		return subs, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 }
