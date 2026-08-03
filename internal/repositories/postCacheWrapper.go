@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"log/slog"
 	"slices"
 	"time"
 
@@ -31,8 +32,8 @@ func (w *postCacheWrapper) RemovePostById(ctx context.Context, postId uuid.UUID,
 	}
 
 	err = w.postCache.RemovePostById(ctx, postId, removeAt)
-	if err != nil { //TODO: cache failure != db one
-		return fmt.Errorf("could not update post in cache: %w", err)
+	if err != nil {
+		slog.ErrorContext(ctx, "RemovePostById", slog.Any("err", err))
 	}
 
 	return nil
@@ -46,14 +47,19 @@ func (w *postCacheWrapper) AddPost(ctx context.Context, post *webModels.Post) er
 	}
 
 	err = w.postCache.AddPost(ctx, post)
-	return err //TODO: cache failure != db failure
+	if err != nil {
+		slog.ErrorContext(ctx, "AddPost", slog.Any("err", err))
+	}
+
+	return nil
 }
 
 func (w *postCacheWrapper) GetPostsWithIds(ctx context.Context, ids []uuid.UUID) ([]webModels.Post, error) {
 	cachedPosts, missedPostsIds, err := w.postCache.GetPostsWithIds(ctx, ids)
 
 	if err != nil {
-		return nil, err
+		slog.ErrorContext(ctx, "GetPostsWithIds", slog.Any("err", err))
+		missedPostsIds = ids
 	}
 
 	if len(missedPostsIds) > 0 {

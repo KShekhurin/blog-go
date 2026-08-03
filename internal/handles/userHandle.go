@@ -10,6 +10,19 @@ import (
 	"github.com/google/uuid"
 )
 
+var (
+	errMissingAuthorId = middleware.HttpErrorMessage{
+		Code:     http.StatusBadRequest,
+		ErrorTag: "missing_author_id",
+		Message:  "author_id is required",
+	}
+	errWrongAuthorIdFormat = middleware.HttpErrorMessage{
+		Code:     http.StatusBadRequest,
+		ErrorTag: "wrong_author_id_format",
+		Message:  "author_id is invalid",
+	}
+)
+
 type UserHandle struct {
 	userService services.UserService
 }
@@ -29,22 +42,27 @@ func NewUserHandler(userService services.UserService) *UserHandle {
 // @Success		204    "No Content"
 // @Router		/user/{author_id}/subs [post]
 func (h *UserHandle) SubscribeTo(ctx *gin.Context) {
-	//TODO: handle errors
 	userId, exists := ctx.Get(middleware.UserIDKey)
 	if !exists {
 		ctx.Error(fmt.Errorf("user id was not found"))
 		return
 	}
 
-	authorId, err := uuid.Parse(ctx.Param("author_id"))
+	idString := ctx.Param("author_id")
+	if idString == "" {
+		ctx.Error(&errMissingAuthorId)
+		return
+	}
+
+	authorId, err := uuid.Parse(idString)
 	if err != nil {
-		ctx.Error(err)
+		ctx.Error(&errWrongAuthorIdFormat)
 		return
 	}
 
 	err = h.userService.SubscribeTo(ctx.Request.Context(), userId.(uuid.UUID), authorId)
 	if err != nil {
-		ctx.Error(err)
+		ctx.Error(processUserServiceErrors(err))
 		return
 	}
 
@@ -60,22 +78,27 @@ func (h *UserHandle) SubscribeTo(ctx *gin.Context) {
 // @Success		204    "No Content"
 // @Router		/user/{author_id}/subs [delete]
 func (h *UserHandle) UnsubscribeFrom(ctx *gin.Context) {
-	//TODO: handle errors
 	userId, exists := ctx.Get(middleware.UserIDKey)
 	if !exists {
 		ctx.Error(fmt.Errorf("user id was not found"))
 		return
 	}
 
-	authorId, err := uuid.Parse(ctx.Param("author_id"))
+	idString := ctx.Param("author_id")
+	if idString == "" {
+		ctx.Error(&errMissingAuthorId)
+		return
+	}
+
+	authorId, err := uuid.Parse(idString)
 	if err != nil {
-		ctx.Error(err)
+		ctx.Error(&errWrongAuthorIdFormat)
 		return
 	}
 
 	err = h.userService.UnsubscribeFrom(ctx.Request.Context(), userId.(uuid.UUID), authorId)
 	if err != nil {
-		ctx.Error(err)
+		ctx.Error(processUserServiceErrors(err))
 		return
 	}
 

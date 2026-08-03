@@ -2,31 +2,11 @@ package handles
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/KShekhurin/blog-go/internal/services"
 	"github.com/KShekhurin/blog-go/internal/webModels"
 	"github.com/gin-gonic/gin"
 )
-
-func getCursorAndLimit(ctx *gin.Context) (*webModels.PostPaginationCursor, int, error) {
-	cursorEncodedStr := ctx.DefaultQuery("cursor", "")
-	limit, err := strconv.Atoi(ctx.DefaultQuery("limit", "10"))
-	if err != nil {
-		return nil, 0, err
-	}
-
-	var cursor *webModels.PostPaginationCursor = nil
-
-	if cursorEncodedStr != "" {
-		cursor, err = decodeCursor(cursorEncodedStr)
-		if err != nil {
-			return nil, 0, err
-		}
-	}
-
-	return cursor, limit, nil
-}
 
 type FeedHandle struct {
 	feedService services.FeedService

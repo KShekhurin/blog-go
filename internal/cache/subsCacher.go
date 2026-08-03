@@ -2,21 +2,17 @@ package cache
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
+	"github.com/KShekhurin/blog-go/internal/errs"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 )
 
-var (
-	ErrorDoesNotExist = errors.New("does not exist")
-)
-
 type SubsCacher interface {
-	SubscribeUserTo(ctx context.Context, sub_id uuid.UUID, auth_id uuid.UUID) error
-	UnsubscribeUserFrom(ctx context.Context, sub_id uuid.UUID, auth_id uuid.UUID) error
-	GetSubs(ctx context.Context, userId uuid.UUID) ([]uuid.UUID, error)
+	SubscribeUserTo(ctx context.Context, subId uuid.UUID, authId uuid.UUID) error
+	UnsubscribeUserFrom(ctx context.Context, subId uuid.UUID, authId uuid.UUID) error
+	GetSubs(ctx context.Context, authId uuid.UUID) ([]uuid.UUID, error)
 }
 
 type subsCacher struct {
@@ -65,7 +61,10 @@ func (c *subsCacher) GetSubs(ctx context.Context, userId uuid.UUID) ([]uuid.UUID
 		return nil, fmt.Errorf("could not check subs key existence: %w", err)
 	}
 	if exists == 0 {
-		return []uuid.UUID{}, ErrorDoesNotExist
+		return []uuid.UUID{}, &errs.NotFoundError{
+			ID:       subsKey,
+			Resource: "GetSubs",
+		}
 	}
 
 	res, err := c.cache.SMembers(ctx, subsKey).Result()

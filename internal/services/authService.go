@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/KShekhurin/blog-go/internal/database"
+	"github.com/KShekhurin/blog-go/internal/errs"
 	"github.com/KShekhurin/blog-go/internal/repositories"
 	"github.com/KShekhurin/blog-go/internal/webModels"
 	"github.com/alexedwards/argon2id"
@@ -16,7 +17,9 @@ import (
 )
 
 var (
-	ErrorInvalidCredentials = errors.New("invalid credentials")
+	ErrInvalidCredentials = errors.New("invalid credentials")
+	ErrTokenBanned        = errors.New("token banned")
+	ErrBadPayload         = errors.New("invalid payload")
 )
 
 const (
@@ -55,13 +58,14 @@ func NewAuthService(userRepo repositories.UserRepository, tokenRepo repositories
 
 func (s *authService) AuthenticateUser(ctx context.Context, userInfo *webModels.UserLoginInfo) (*database.User, error) {
 	if userInfo.Login == "" && userInfo.Email == "" {
-		return nil, ErrorBadPayload
+
+		return nil, ErrBadPayload
 	}
 
 	user, err := s.userRepo.FindUserByLoginOrEmail(ctx, userInfo.Login, userInfo.Email)
 	if err != nil {
-		if errors.Is(err, repositories.ErrorDoesNotExist) {
-			return nil, ErrorInvalidCredentials
+		if errors.Is(err, errs.ErrNotFound) {
+			return nil, ErrInvalidCredentials
 		}
 		return nil, fmt.Errorf("find user by login or email failed: %w", err)
 	}
@@ -71,7 +75,7 @@ func (s *authService) AuthenticateUser(ctx context.Context, userInfo *webModels.
 		return nil, fmt.Errorf("compare password failed: %w", err)
 	}
 	if !match {
-		return nil, ErrorInvalidCredentials
+		return nil, ErrInvalidCredentials
 	}
 
 	return user, nil
@@ -132,7 +136,7 @@ func (s *authService) RotateJWT(ctx context.Context, jti uuid.UUID, userId uuid.
 	}
 
 	if !isSuccess {
-		return nil, ErrorInvalidCredentials
+		return nil, ErrTokenBanned
 	}
 
 	return s.SignJWT(ctx, userId)
@@ -146,7 +150,7 @@ func (s *authService) LogoutByRefresh(ctx context.Context, jti uuid.UUID) error 
 	}
 
 	if !isSuccess {
-		return ErrorInvalidCredentials
+		return ErrTokenBanned
 	}
 
 	return nil

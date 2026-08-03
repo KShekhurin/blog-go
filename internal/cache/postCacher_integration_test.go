@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/KShekhurin/blog-go/internal/errs"
 	"github.com/KShekhurin/blog-go/internal/webModels"
 	"github.com/KShekhurin/blog-go/migrations"
 	"github.com/google/uuid"
@@ -61,6 +62,8 @@ func getPostRaw(t *testing.T, ctx context.Context, client *redis.Client, postId 
 	}
 	require.NoError(t, err)
 
+	fmt.Println(res)
+
 	var wrapped []webModels.Post
 	require.NoError(t, json.Unmarshal([]byte(res), &wrapped))
 	require.NotEmpty(t, wrapped)
@@ -70,6 +73,7 @@ func getPostRaw(t *testing.T, ctx context.Context, client *redis.Client, postId 
 
 func TestRemovePostById(t *testing.T) {
 	t.Run("post removed: deleted_at is set", func(t *testing.T) {
+		t.Parallel()
 		cacher, client, ctx := setupPostCacherTest(t)
 
 		post := newTestPost()
@@ -85,14 +89,16 @@ func TestRemovePostById(t *testing.T) {
 			"expected deleted_at %v, got %v", removeAt, *got.DeletedAt)
 	})
 
-	t.Run("post does not exist: no error", func(t *testing.T) {
+	t.Run("post does not exist: not found error", func(t *testing.T) {
+		t.Parallel()
 		cacher, _, ctx := setupPostCacherTest(t)
 
 		err := cacher.RemovePostById(ctx, uuid.New(), time.Now())
-		require.NoError(t, err)
+		require.ErrorIs(t, err, errs.ErrNotFound)
 	})
 
 	t.Run("post is already deleted: throws error", func(t *testing.T) {
+		t.Parallel()
 		cacher, client, ctx := setupPostCacherTest(t)
 
 		post := newTestPost()
@@ -101,12 +107,13 @@ func TestRemovePostById(t *testing.T) {
 		putPostRaw(t, ctx, client, post)
 
 		err := cacher.RemovePostById(ctx, post.Id, time.Now())
-		require.ErrorIs(t, err, ErrorAlreadyDeleted)
+		require.ErrorIs(t, err, errs.ErrAlreadyDeleted)
 	})
 }
 
 func TestAddPost(t *testing.T) {
 	t.Run("post added", func(t *testing.T) {
+		t.Parallel()
 		cacher, client, ctx := setupPostCacherTest(t)
 
 		post := newTestPost()
@@ -124,6 +131,7 @@ func TestAddPost(t *testing.T) {
 	})
 
 	t.Run("post existed: overwritten", func(t *testing.T) {
+		t.Parallel()
 		cacher, client, ctx := setupPostCacherTest(t)
 
 		post := newTestPost()
@@ -140,6 +148,7 @@ func TestAddPost(t *testing.T) {
 
 func TestGetPostsWithIds(t *testing.T) {
 	t.Run("all posts fetched", func(t *testing.T) {
+		t.Parallel()
 		cacher, client, ctx := setupPostCacherTest(t)
 
 		posts := []webModels.Post{newTestPost(), newTestPost(), newTestPost()}
@@ -161,6 +170,7 @@ func TestGetPostsWithIds(t *testing.T) {
 	})
 
 	t.Run("some posts are missing: returned proper missing ids", func(t *testing.T) {
+		t.Parallel()
 		cacher, client, ctx := setupPostCacherTest(t)
 
 		post := newTestPost()
@@ -176,6 +186,7 @@ func TestGetPostsWithIds(t *testing.T) {
 	})
 
 	t.Run("deleted posts are excluded both from found posts and from missing ones", func(t *testing.T) {
+		t.Parallel()
 		cacher, client, ctx := setupPostCacherTest(t)
 
 		alivePost := newTestPost()
@@ -195,6 +206,7 @@ func TestGetPostsWithIds(t *testing.T) {
 	})
 
 	t.Run("no posts were found", func(t *testing.T) {
+		t.Parallel()
 		cacher, _, ctx := setupPostCacherTest(t)
 
 		ids := []uuid.UUID{uuid.New(), uuid.New()}
@@ -208,6 +220,7 @@ func TestGetPostsWithIds(t *testing.T) {
 
 func TestAddPosts(t *testing.T) {
 	t.Run("all posts are added", func(t *testing.T) {
+		t.Parallel()
 		cacher, client, ctx := setupPostCacherTest(t)
 
 		posts := []webModels.Post{newTestPost(), newTestPost(), newTestPost()}
@@ -226,6 +239,7 @@ func TestAddPosts(t *testing.T) {
 	})
 
 	t.Run("no posts provided: no error", func(t *testing.T) {
+		t.Parallel()
 		cacher, client, ctx := setupPostCacherTest(t)
 
 		require.NoError(t, cacher.AddPosts(ctx, nil))

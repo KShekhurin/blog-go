@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/KShekhurin/blog-go/internal/database"
+	"github.com/KShekhurin/blog-go/internal/errs"
 	"github.com/KShekhurin/blog-go/migrations"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -43,6 +44,7 @@ func countTokensByUserId(t *testing.T, ctx context.Context, pool *pgxpool.Pool, 
 
 func TestAddToken(t *testing.T) {
 	t.Run("token added", func(t *testing.T) {
+		t.Parallel()
 		ctx := context.Background()
 		pool := migrations.SetupPostgres(ctx, t)
 
@@ -71,6 +73,7 @@ func TestAddToken(t *testing.T) {
 	})
 
 	t.Run("token not added due to unique violation, throws error", func(t *testing.T) {
+		t.Parallel()
 		ctx := context.Background()
 		pool := migrations.SetupPostgres(ctx, t)
 
@@ -89,12 +92,13 @@ func TestAddToken(t *testing.T) {
 
 		// Second insert with the same jti should fail
 		err = tokenRepo.AddToken(ctx, jti, user.ID, expiresAt)
-		assert.ErrorIs(t, err, ErrorUniqueViolation)
+		assert.ErrorIs(t, err, errs.ErrAlreadyExists)
 	})
 }
 
 func TestTryToDeleteToken(t *testing.T) {
 	t.Run("successfully deletes token, returns true", func(t *testing.T) {
+		t.Parallel()
 		ctx := context.Background()
 		pool := migrations.SetupPostgres(ctx, t)
 
@@ -122,6 +126,7 @@ func TestTryToDeleteToken(t *testing.T) {
 	})
 
 	t.Run("does not delete one, returns false", func(t *testing.T) {
+		t.Parallel()
 		ctx := context.Background()
 		pool := migrations.SetupPostgres(ctx, t)
 
@@ -136,6 +141,7 @@ func TestTryToDeleteToken(t *testing.T) {
 
 func TestDeleteAllUserTokens(t *testing.T) {
 	t.Run("deletes all user tokens", func(t *testing.T) {
+		t.Parallel()
 		ctx := context.Background()
 		pool := migrations.SetupPostgres(ctx, t)
 

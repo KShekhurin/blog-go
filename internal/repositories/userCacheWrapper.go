@@ -2,9 +2,12 @@ package repositories
 
 import (
 	"context"
+	"errors"
+	"log/slog"
 
 	"github.com/KShekhurin/blog-go/internal/cache"
 	"github.com/KShekhurin/blog-go/internal/database"
+	"github.com/KShekhurin/blog-go/internal/errs"
 	"github.com/google/uuid"
 )
 
@@ -36,31 +39,53 @@ func (w *userCacheWrapper) AddUser(ctx context.Context, user *database.User) err
 	return w.userRepo.AddUser(ctx, user)
 }
 
-func (w *userCacheWrapper) SubscribeUserTo(ctx context.Context, sub_id uuid.UUID, auth_id uuid.UUID) error {
-	err := w.userRepo.SubscribeUserTo(ctx, sub_id, auth_id)
+func (w *userCacheWrapper) SubscribeUserTo(ctx context.Context, subId uuid.UUID, authId uuid.UUID) error {
+	err := w.userRepo.SubscribeUserTo(ctx, subId, authId)
 	if err != nil {
 		return err
 	}
 
-	err = w.subsCache.SubscribeUserTo(ctx, sub_id, auth_id)
+	err = w.subsCache.SubscribeUserTo(ctx, subId, authId)
+	if err != nil {
+		//If addition fails we should invalidate all list
+		//Cache no longer in sync with the db
+		slog.ErrorContext(ctx, "UnsubscribeUserFrom", slog.Any("err", err))
+		return err
+	}
 
-	//TODO: cache failure != db one
-	return err
+	return nil
 }
 
-func (w *userCacheWrapper) UnsubscribeUserFrom(ctx context.Context, sub_id uuid.UUID, auth_id uuid.UUID) error {
-	err := w.userRepo.UnsubscribeUserFrom(ctx, sub_id, auth_id)
+func (w *userCacheWrapper) UnsubscribeUserFrom(ctx context.Context, subId uuid.UUID, authId uuid.UUID) error {
+	err := w.userRepo.UnsubscribeUserFrom(ctx, subId, authId)
 
 	if err != nil {
 		return err
 	}
 
-	err = w.subsCache.UnsubscribeUserFrom(ctx, sub_id, auth_id)
+	err = w.subsCache.UnsubscribeUserFrom(ctx, subId, authId)
 
-	//TODO: cache failure != db one
+	if err != nil {
+		//If removal fails we should invalidate all list
+		//Cache no longer in sync with the db
+		slog.ErrorContext(ctx, "UnsubscribeUserFrom", slog.Any("err", err))
+		return err
+	}
+
 	return err
 }
 
 func (w *userCacheWrapper) GetSubs(ctx context.Context, userId uuid.UUID) ([]uuid.UUID, error) {
-	return w.userRepo.GetSubs(ctx, userId)
+	subs, err := w.subsCache.GetSubs(ctx, userId)
+
+	if errors.Is(err, errs.ErrNotFound) {
+		subs, err = w.userRepo.GetSubs(ctx, userId)
+		if err != nil {
+			return nil, err
+		}
+	} else if err != nil {
+		slog.ErrorContext(ctx, "GetSubs", "msg", slog.Any("err", err))
+	}
+
+	return subs, nil
 }

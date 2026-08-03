@@ -3,18 +3,13 @@ package cache
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"time"
 
+	"github.com/KShekhurin/blog-go/internal/errs"
 	"github.com/KShekhurin/blog-go/internal/webModels"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
-)
-
-var (
-	ErrorPostFetchFailed = errors.New("post fetch failed")
-	ErrorAlreadyDeleted  = errors.New("already deleted")
 )
 
 type CacherParams struct {
@@ -44,22 +39,25 @@ func (c *postCacher) RemovePostById(ctx context.Context, postId uuid.UUID, remov
 	//NOTE: It is a data race but its not critical in terms or caching
 
 	key := fmt.Sprintf("post:%v", postId)
-	jsonType, err := c.cache.JSONType(ctx, key, "$").Result()
-
+	exists, err := c.cache.Exists(ctx, key).Result()
 	if err != nil {
 		return err
 	}
-	if len(jsonType) == 0 || jsonType[0] == nil {
-		return nil
+	if exists == 0 {
+		return fmt.Errorf("post does not exist: %w",
+			&errs.NotFoundError{
+				ID:       key,
+				Resource: "RemovePostById",
+			})
 	}
 
-	deletedAt, err := c.cache.JSONType(ctx, key, "$.deleted_at").Result()
-
+	result, err := c.cache.JSONGet(ctx, key, "$.deleted_at").Result()
 	if err != nil {
 		return err
 	}
-	if len(deletedAt) > 0 && deletedAt[0] != nil {
-		return fmt.Errorf("could not delete post: %w", ErrorAlreadyDeleted)
+
+	if result != "[]" { //TODO: this is awful but JSONType is even worse
+		return fmt.Errorf("could not delete post: %w", errs.ErrAlreadyDeleted)
 	}
 
 	err = c.cache.JSONSet(ctx, key, "$.deleted_at", removeAt).Err()
