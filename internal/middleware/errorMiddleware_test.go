@@ -11,7 +11,6 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/KShekhurin/blog-go/internal/services"
 	"github.com/gin-gonic/gin"
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
@@ -156,38 +155,6 @@ func TestErrorMiddleware_UnexpectedEOF(t *testing.T) {
 	assert.Equal(t, "unexpected end of json input", resp.Message)
 }
 
-func TestErrorMiddleware_InvalidCredentials(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	r := setupErrorRouter(services.ErrorInvalidCredentials)
-	w := performRequest(r)
-
-	require.Equal(t, http.StatusUnauthorized, w.Code)
-
-	var resp GeneralErrorMessage
-	err := json.Unmarshal(w.Body.Bytes(), &resp)
-	require.NoError(t, err)
-
-	assert.Equal(t, "invalid_credentials", resp.Error)
-	assert.Equal(t, "Invalid Credentials", resp.Message)
-}
-
-func TestErrorMiddleware_UserExists(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	r := setupErrorRouter(services.ErrorUserExist)
-	w := performRequest(r)
-
-	require.Equal(t, http.StatusConflict, w.Code)
-
-	var resp GeneralErrorMessage
-	err := json.Unmarshal(w.Body.Bytes(), &resp)
-	require.NoError(t, err)
-
-	assert.Equal(t, "user_exists", resp.Error)
-	assert.Equal(t, "User already exists", resp.Message)
-}
-
 func TestErrorMiddleware_InternalServerError(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -202,6 +169,25 @@ func TestErrorMiddleware_InternalServerError(t *testing.T) {
 
 	assert.Equal(t, "internal_server_error", resp.Error)
 	assert.Equal(t, "Internal Server Error", resp.Message)
+}
+
+func TestErrorMiddleware_HttpError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	r := setupErrorRouter(&HttpErrorMessage{
+		Message:  "some error message",
+		ErrorTag: "error",
+		Code:     http.StatusTeapot,
+	})
+	w := performRequest(r)
+
+	require.Equal(t, http.StatusTeapot, w.Code)
+	var resp GeneralErrorMessage
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+
+	require.NoError(t, err)
+	assert.Equal(t, "some error message", resp.Message)
+	assert.Equal(t, "error", resp.Error)
 }
 
 // mockFieldError implements validator.FieldError for testing messageForTag

@@ -6,16 +6,15 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/KShekhurin/blog-go/internal/errs"
 	"github.com/KShekhurin/blog-go/internal/repositories"
 	"github.com/KShekhurin/blog-go/internal/webModels"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 )
 
 var (
-	ErrorPostWasDeleted = errors.New("post was deleted")
-	ErrorDoesNotExist   = errors.New("post does not exist")
-	ErrorUnauthorized   = errors.New("unauthorized")
+	ErrorPostWasDeleted   = errors.New("post was deleted")
+	ErrorPostDoesNotExist = errors.New("post does not exist")
 )
 
 type PostService interface {
@@ -38,8 +37,8 @@ func NewPostService(postRepo repositories.PostRepository) PostService {
 func (s *postService) RemovePostById(ctx context.Context, postId uuid.UUID, userId uuid.UUID) (*webModels.Post, error) {
 	post, err := s.postRepo.GetPostById(ctx, postId)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrorDoesNotExist
+		if errors.Is(err, errs.ErrNotFound) {
+			return nil, ErrorPostDoesNotExist
 		}
 		return nil, fmt.Errorf("failed to get post by id: %w", err)
 	}
@@ -99,7 +98,7 @@ func (s *postService) GetPostsByAuthorId(ctx context.Context, authorId uuid.UUID
 	)
 
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("could not gather posts by author id %s: %w", authorId, err)
 	}
 
 	return posts, cursor, nil
@@ -111,7 +110,7 @@ func (s *postService) AddPost(ctx context.Context, request webModels.CreatePostR
 	err := s.postRepo.AddPost(ctx, post)
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not add post: %w", err)
 	}
 
 	return post, nil
@@ -121,7 +120,7 @@ func (s *postService) GetPostById(ctx context.Context, id uuid.UUID) (*webModels
 	post, err := s.postRepo.GetPostById(ctx, id)
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not get post by id %s: %w", id, err)
 	}
 
 	if post.DeletedAt != nil {

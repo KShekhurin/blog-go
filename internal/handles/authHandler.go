@@ -3,11 +3,9 @@ package handles
 import (
 	"net/http"
 
-	"github.com/KShekhurin/blog-go/internal/middleware"
 	"github.com/KShekhurin/blog-go/internal/services"
 	"github.com/KShekhurin/blog-go/internal/webModels"
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
 
 type AuthHandler struct {
@@ -41,13 +39,13 @@ func (h *AuthHandler) Register(ctx *gin.Context) {
 	user, err := h.userService.CreateUser(ctx.Request.Context(), &registerInfo)
 
 	if err != nil {
-		ctx.Error(err)
+		ctx.Error(processUserServiceErrors(err))
 		return
 	}
 
 	tokens, err := h.authService.SignJWT(ctx.Request.Context(), user.ID)
 	if err != nil {
-		ctx.Error(err)
+		ctx.Error(processAuthServiceErrors(err))
 		return
 	}
 
@@ -73,13 +71,13 @@ func (h *AuthHandler) Login(ctx *gin.Context) {
 
 	user, err := h.authService.AuthenticateUser(ctx.Request.Context(), &userLoginInfo)
 	if err != nil {
-		ctx.Error(err)
+		ctx.Error(processAuthServiceErrors(err))
 		return
 	}
 
 	tokens, err := h.authService.SignJWT(ctx.Request.Context(), user.ID)
 	if err != nil {
-		ctx.Error(err)
+		ctx.Error(processAuthServiceErrors(err))
 		return
 	}
 
@@ -95,31 +93,21 @@ func (h *AuthHandler) Login(ctx *gin.Context) {
 // @Success		200	{object}	webModels.TokenPair
 // @Router		/auth/refresh [post]
 func (h *AuthHandler) Refresh(ctx *gin.Context) {
-	userIDValue, exists := ctx.Get(middleware.UserIDKey)
-	if !exists {
-		ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-		return
-	}
-	userID, ok := userIDValue.(uuid.UUID)
-	if !ok {
-		ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-		return
-	}
-
-	jtiValue, exists := ctx.Get(middleware.RefreshJTIKey)
-	if !exists {
-		ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-		return
-	}
-	jti, ok := jtiValue.(uuid.UUID)
-	if !ok {
-		ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-		return
-	}
-
-	tokens, err := h.authService.RotateJWT(ctx.Request.Context(), jti, userID)
+	userId, err := getUserId(ctx)
 	if err != nil {
 		ctx.Error(err)
+		return
+	}
+
+	jti, err := getJti(ctx)
+	if err != nil {
+		ctx.Error(err)
+		return
+	}
+
+	tokens, err := h.authService.RotateJWT(ctx.Request.Context(), jti, userId)
+	if err != nil {
+		ctx.Error(processAuthServiceErrors(err))
 		return
 	}
 
@@ -135,20 +123,15 @@ func (h *AuthHandler) Refresh(ctx *gin.Context) {
 // @Success		204    "No Content"
 // @Router		/auth/logout [post]
 func (h *AuthHandler) Logout(ctx *gin.Context) {
-	jtiValue, exists := ctx.Get(middleware.RefreshJTIKey)
-	if !exists {
-		ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-		return
-	}
-	jti, ok := jtiValue.(uuid.UUID)
-	if !ok {
-		ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+	jti, err := getJti(ctx)
+	if err != nil {
+		ctx.Error(err)
 		return
 	}
 
-	err := h.authService.LogoutByRefresh(ctx.Request.Context(), jti)
+	err = h.authService.LogoutByRefresh(ctx.Request.Context(), jti)
 	if err != nil {
-		ctx.Error(err)
+		ctx.Error(processAuthServiceErrors(err))
 		return
 	}
 

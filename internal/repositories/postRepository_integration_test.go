@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/KShekhurin/blog-go/internal/database"
+	"github.com/KShekhurin/blog-go/internal/errs"
 	"github.com/KShekhurin/blog-go/internal/webModels"
 	"github.com/KShekhurin/blog-go/migrations"
 	"github.com/google/uuid"
@@ -108,6 +109,7 @@ func extractAttachmentIDs(media []webModels.AttachedMedia) []uuid.UUID {
 
 func TestAddPost(t *testing.T) {
 	t.Run("successfully adds post with zero attachments", func(t *testing.T) {
+		t.Parallel()
 		repo, pool, ctx := setupPostRepoTest(t)
 		authorId := mustCreatePostAuthor(t, ctx, pool)
 
@@ -127,6 +129,7 @@ func TestAddPost(t *testing.T) {
 	})
 
 	t.Run("successfully adds post with several attachments", func(t *testing.T) {
+		t.Parallel()
 		repo, pool, ctx := setupPostRepoTest(t)
 		authorId := mustCreatePostAuthor(t, ctx, pool)
 
@@ -146,6 +149,7 @@ func TestAddPost(t *testing.T) {
 	})
 
 	t.Run("successfully adds post that is a reply", func(t *testing.T) {
+		t.Parallel()
 		repo, pool, ctx := setupPostRepoTest(t)
 		authorId := mustCreatePostAuthor(t, ctx, pool)
 
@@ -164,6 +168,7 @@ func TestAddPost(t *testing.T) {
 	})
 
 	t.Run("returns error on unique violation", func(t *testing.T) {
+		t.Parallel()
 		repo, pool, ctx := setupPostRepoTest(t)
 		authorId := mustCreatePostAuthor(t, ctx, pool)
 
@@ -175,7 +180,7 @@ func TestAddPost(t *testing.T) {
 
 		err := repo.AddPost(ctx, duplicate)
 		require.Error(t, err)
-		require.ErrorIs(t, err, ErrorUniqueViolation)
+		require.ErrorIs(t, err, errs.ErrAlreadyExists)
 	})
 }
 
@@ -183,6 +188,7 @@ func TestAddPost(t *testing.T) {
 
 func TestRemovePostById(t *testing.T) {
 	t.Run("successfully sets deleted_at", func(t *testing.T) {
+		t.Parallel()
 		repo, pool, ctx := setupPostRepoTest(t)
 		authorId := mustCreatePostAuthor(t, ctx, pool)
 
@@ -206,7 +212,7 @@ func TestRemovePostById(t *testing.T) {
 
 		err := repo.RemovePostById(ctx, uuid.New(), utcNow())
 		require.Error(t, err)
-		require.ErrorIs(t, err, ErrorDoesNotExist)
+		require.ErrorIs(t, err, errs.ErrNotFound)
 	})
 }
 
@@ -214,6 +220,7 @@ func TestRemovePostById(t *testing.T) {
 
 func TestGetPostById(t *testing.T) {
 	t.Run("successfully fetches post without attachments", func(t *testing.T) {
+		t.Parallel()
 		repo, pool, ctx := setupPostRepoTest(t)
 		authorId := mustCreatePostAuthor(t, ctx, pool)
 
@@ -230,6 +237,7 @@ func TestGetPostById(t *testing.T) {
 	})
 
 	t.Run("successfully fetches post with attachments", func(t *testing.T) {
+		t.Parallel()
 		repo, pool, ctx := setupPostRepoTest(t)
 		authorId := mustCreatePostAuthor(t, ctx, pool)
 
@@ -261,11 +269,12 @@ func TestGetPostById(t *testing.T) {
 	})
 
 	t.Run("returns error when post not found", func(t *testing.T) {
+		t.Parallel()
 		repo, _, ctx := setupPostRepoTest(t)
 
 		_, err := repo.GetPostById(ctx, uuid.New())
 		require.Error(t, err)
-		require.ErrorIs(t, err, ErrorDoesNotExist)
+		require.ErrorIs(t, err, errs.ErrNotFound)
 	})
 }
 
@@ -273,6 +282,7 @@ func TestGetPostById(t *testing.T) {
 
 func TestGetPostsWithIds(t *testing.T) {
 	t.Run("finds all posts with listed ids", func(t *testing.T) {
+		t.Parallel()
 		repo, pool, ctx := setupPostRepoTest(t)
 		authorId := mustCreatePostAuthor(t, ctx, pool)
 
@@ -286,6 +296,7 @@ func TestGetPostsWithIds(t *testing.T) {
 	})
 
 	t.Run("finds posts partially when some ids do not exist", func(t *testing.T) {
+		t.Parallel()
 		repo, pool, ctx := setupPostRepoTest(t)
 		authorId := mustCreatePostAuthor(t, ctx, pool)
 
@@ -300,6 +311,7 @@ func TestGetPostsWithIds(t *testing.T) {
 	})
 
 	t.Run("does not return deleted posts", func(t *testing.T) {
+		t.Parallel()
 		repo, pool, ctx := setupPostRepoTest(t)
 		authorId := mustCreatePostAuthor(t, ctx, pool)
 
@@ -318,6 +330,7 @@ func TestGetPostsWithIds(t *testing.T) {
 
 func TestGetPostsByAuthorId(t *testing.T) {
 	t.Run("no cursor: returns first page and cursor pointing at the last post", func(t *testing.T) {
+		t.Parallel()
 		repo, pool, ctx := setupPostRepoTest(t)
 		authorId := mustCreatePostAuthor(t, ctx, pool)
 
@@ -338,6 +351,7 @@ func TestGetPostsByAuthorId(t *testing.T) {
 	})
 
 	t.Run("with cursor: fetches posts after the cursor position", func(t *testing.T) {
+		t.Parallel()
 		repo, pool, ctx := setupPostRepoTest(t)
 		authorId := mustCreatePostAuthor(t, ctx, pool)
 
@@ -361,6 +375,7 @@ func TestGetPostsByAuthorId(t *testing.T) {
 	})
 
 	t.Run("does not fetch deleted posts", func(t *testing.T) {
+		t.Parallel()
 		repo, pool, ctx := setupPostRepoTest(t)
 		authorId := mustCreatePostAuthor(t, ctx, pool)
 
@@ -382,6 +397,7 @@ func TestGetPostsByAuthorId(t *testing.T) {
 	})
 
 	t.Run("cursor at last post: returns zero posts and empty cursor", func(t *testing.T) {
+		t.Parallel()
 		repo, pool, ctx := setupPostRepoTest(t)
 		authorId := mustCreatePostAuthor(t, ctx, pool)
 

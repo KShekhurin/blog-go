@@ -58,6 +58,7 @@ func feedMembers(t *testing.T, ctx context.Context, client *redis.Client, userId
 
 func TestPushToFeeds(t *testing.T) {
 	t.Run("pushes to all listed feeds", func(t *testing.T) {
+		t.Parallel()
 		cacher, client, ctx := setupFeedCacherTest(t)
 
 		postId := uuid.New()
@@ -74,6 +75,7 @@ func TestPushToFeeds(t *testing.T) {
 	})
 
 	t.Run("no sub ids provided: no error and nothing pushed", func(t *testing.T) {
+		t.Parallel()
 		cacher, client, ctx := setupFeedCacherTest(t)
 
 		require.NoError(t, cacher.PushToFeeds(ctx, uuid.New(), truncateMillis(time.Now()), nil))
@@ -86,6 +88,7 @@ func TestPushToFeeds(t *testing.T) {
 
 func TestRemoveFromFeeds(t *testing.T) {
 	t.Run("removes from all listed feeds", func(t *testing.T) {
+		t.Parallel()
 		cacher, client, ctx := setupFeedCacherTest(t)
 
 		postId := uuid.New()
@@ -104,6 +107,7 @@ func TestRemoveFromFeeds(t *testing.T) {
 	})
 
 	t.Run("no error when feed key does not contain the member", func(t *testing.T) {
+		t.Parallel()
 		cacher, client, ctx := setupFeedCacherTest(t)
 
 		subId := uuid.New()
@@ -117,6 +121,7 @@ func TestRemoveFromFeeds(t *testing.T) {
 	})
 
 	t.Run("no error when feed key does not exist at all", func(t *testing.T) {
+		t.Parallel()
 		cacher, _, ctx := setupFeedCacherTest(t)
 
 		err := cacher.RemoveFromFeeds(ctx, uuid.New(), truncateMillis(time.Now()), []uuid.UUID{uuid.New()})
@@ -124,6 +129,7 @@ func TestRemoveFromFeeds(t *testing.T) {
 	})
 
 	t.Run("no ids provided: no error", func(t *testing.T) {
+		t.Parallel()
 		cacher, _, ctx := setupFeedCacherTest(t)
 
 		require.NoError(t, cacher.RemoveFromFeeds(ctx, uuid.New(), truncateMillis(time.Now()), nil))
@@ -134,6 +140,7 @@ func TestGetFeedPostsIds(t *testing.T) {
 	base := truncateMillis(time.Now())
 
 	t.Run("no cursor: returns newest posts first up to limit", func(t *testing.T) {
+		t.Parallel()
 		cacher, client, ctx := setupFeedCacherTest(t)
 
 		userId := uuid.New()
@@ -148,6 +155,7 @@ func TestGetFeedPostsIds(t *testing.T) {
 	})
 
 	t.Run("with cursor: returns posts strictly before the cursor position", func(t *testing.T) {
+		t.Parallel()
 		cacher, client, ctx := setupFeedCacherTest(t)
 
 		userId := uuid.New()
@@ -167,6 +175,7 @@ func TestGetFeedPostsIds(t *testing.T) {
 	})
 
 	t.Run("feed with such user id does not exist: returns empty result without error", func(t *testing.T) {
+		t.Parallel()
 		cacher, _, ctx := setupFeedCacherTest(t)
 
 		got, err := cacher.GetFeedPostsIds(ctx, uuid.New(), nil, 10)
@@ -175,6 +184,7 @@ func TestGetFeedPostsIds(t *testing.T) {
 	})
 
 	t.Run("cursor points to the oldest post: returns empty result", func(t *testing.T) {
+		t.Parallel()
 		cacher, client, ctx := setupFeedCacherTest(t)
 
 		userId := uuid.New()

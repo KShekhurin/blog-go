@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/KShekhurin/blog-go/internal/database"
+	"github.com/KShekhurin/blog-go/internal/errs"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -42,7 +43,7 @@ func (repo *userRepository) FindUserById(ctx context.Context, id uuid.UUID) (*da
 	user, err := repo.queries.FindUserById(ctx, id)
 
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, ErrorDoesNotExist
+		return nil, &errs.NotFoundError{ID: id.String(), Resource: "FindUserById"}
 	} else if err != nil {
 		return nil, fmt.Errorf("unexpected error: %w", err)
 	}
@@ -54,7 +55,7 @@ func (repo *userRepository) FindUserByLogin(ctx context.Context, login string) (
 	user, err := repo.queries.FindUserByLogin(ctx, login)
 
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, ErrorDoesNotExist
+		return nil, &errs.NotFoundError{ID: login, Resource: "FindUserByLogin"}
 	} else if err != nil {
 		return nil, fmt.Errorf("unexpected error: %w", err)
 	}
@@ -71,7 +72,7 @@ func (repo *userRepository) FindUserByLoginOrEmail(ctx context.Context, login st
 		})
 
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, ErrorDoesNotExist
+		return nil, &errs.NotFoundError{ID: fmt.Sprintf("%s and %s", login, email), Resource: "FindUserById"}
 	} else if err != nil {
 		return nil, fmt.Errorf("unexpected error: %w", err)
 	}
@@ -90,7 +91,7 @@ func (repo *userRepository) AddUser(ctx context.Context, user *database.User) er
 		})
 
 	if IsUniqueViolation(err) {
-		return ErrorUniqueViolation
+		return fmt.Errorf("user with such credentials already exists: %w", errs.ErrAlreadyExists)
 	}
 
 	return err
@@ -100,9 +101,6 @@ func (repo *userRepository) GetSubs(ctx context.Context, userId uuid.UUID) ([]uu
 	ids, err := repo.queries.GetSubscribers(ctx, userId)
 
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrorDoesNotExist
-		}
 		return nil, fmt.Errorf("unexpected error: %w", err)
 	}
 
@@ -118,7 +116,10 @@ func (repo *userRepository) SubscribeUserTo(ctx context.Context, subId uuid.UUID
 		})
 
 	if IsUniqueViolation(err) {
-		return ErrorUniqueViolation
+		return fmt.Errorf("%s -> %s sub pair already exists: %w",
+			subId,
+			authId,
+			errs.ErrAlreadyExists)
 	}
 
 	return err
@@ -133,7 +134,10 @@ func (repo *userRepository) UnsubscribeUserFrom(ctx context.Context, subId uuid.
 		})
 
 	if cnt == 0 {
-		return ErrorDoesNotExist
+		return &errs.NotFoundError{
+			ID:       fmt.Sprintf("%s -> %s", subId, authId),
+			Resource: "UnsubscribeUserFrom",
+		}
 	}
 
 	return err

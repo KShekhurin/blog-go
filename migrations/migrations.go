@@ -66,20 +66,27 @@ func SetupPostgres(ctx context.Context, t testing.TB) *pgxpool.Pool {
 		t.Fatalf("failed to create pool: %v", err)
 	}
 
-	goose.SetBaseFS(migrations)
-	if err := goose.SetDialect("postgres"); err != nil {
-		t.Fatalf("failed to set dialect: %v", err)
-	}
-
 	db := stdlib.OpenDBFromPool(pool)
-	if err := goose.Up(db, "."); err != nil {
+
+	provider, err := goose.NewProvider(goose.DialectPostgres, db, migrations)
+	if err != nil {
+		db.Close()
+		pool.Close()
+		t.Fatalf("failed to create goose provider: %v", err)
+	}
+	if _, err := provider.Up(ctx); err != nil {
+		db.Close()
+		pool.Close()
 		t.Fatalf("failed to run migrations: %v", err)
 	}
 
 	t.Cleanup(func() {
 		db.Close()
 		pool.Close()
-		if err := postgresContainer.Terminate(ctx); err != nil {
+
+		terminateCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := postgresContainer.Terminate(terminateCtx); err != nil {
 			t.Logf("failed to terminate container: %v", err)
 		}
 	})

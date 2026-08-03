@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/KShekhurin/blog-go/internal/database"
+	"github.com/KShekhurin/blog-go/internal/errs"
 	"github.com/KShekhurin/blog-go/internal/webModels"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -89,7 +90,7 @@ func (r *postRepository) RemovePostById(ctx context.Context, postId uuid.UUID, r
 	})
 
 	if cnt == 0 {
-		return fmt.Errorf("Post with if %s does not exit: %w", postId, ErrorDoesNotExist)
+		return &errs.NotFoundError{ID: postId.String(), Resource: "RemovePostById"}
 	}
 
 	return err
@@ -118,7 +119,7 @@ func (r *postRepository) AddPost(ctx context.Context, post *webModels.Post) erro
 
 	if err != nil {
 		if IsUniqueViolation(err) {
-			return fmt.Errorf("post violates unique rules: %w", ErrorUniqueViolation)
+			return fmt.Errorf("post with such id already exists: %w", errs.ErrAlreadyExists)
 		}
 		return fmt.Errorf("failed to add post: %w", err)
 	}
@@ -174,7 +175,7 @@ func (r *postRepository) GetPostById(ctx context.Context, id uuid.UUID) (*webMod
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, fmt.Errorf("post was not found: %w", ErrorDoesNotExist)
+			return nil, &errs.NotFoundError{ID: id.String(), Resource: "GetPostById"}
 		}
 		return nil, fmt.Errorf("failed to find post by id: %w", err)
 	}
