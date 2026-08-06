@@ -13,9 +13,9 @@ type Database struct {
 	Cache *redis.Client
 }
 
-func (db *Database) Close() {
+func (db *Database) Close() error {
 	db.Db.Close()
-	db.Cache.Close()
+	return db.Cache.Close()
 }
 
 func Load(cfg *config.Config) (*Database, error) {
