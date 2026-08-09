@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/KShekhurin/blog-go/internal/database"
+	"github.com/KShekhurin/blog-go/internal/errs"
 	"github.com/KShekhurin/blog-go/migrations"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -15,6 +16,7 @@ import (
 
 func TestAddUser(t *testing.T) {
 	t.Run("user added", func(t *testing.T) {
+		t.Parallel()
 		ctx := context.Background()
 		pool := migrations.SetupPostgres(ctx, t)
 
@@ -41,6 +43,7 @@ func TestAddUser(t *testing.T) {
 	})
 
 	t.Run("user already exists", func(t *testing.T) {
+		t.Parallel()
 		ctx := context.Background()
 		pool := migrations.SetupPostgres(ctx, t)
 
@@ -60,12 +63,13 @@ func TestAddUser(t *testing.T) {
 
 		// Second insert with same credentials should fail
 		err = userRepo.AddUser(ctx, user)
-		assert.ErrorIs(t, err, ErrorUniqueViolation)
+		assert.ErrorIs(t, err, errs.ErrAlreadyExists)
 	})
 }
 
 func TestFindUserById(t *testing.T) {
 	t.Run("user found", func(t *testing.T) {
+		t.Parallel()
 		ctx := context.Background()
 		pool := migrations.SetupPostgres(ctx, t)
 
@@ -88,6 +92,7 @@ func TestFindUserById(t *testing.T) {
 	})
 
 	t.Run("user not found, returns error", func(t *testing.T) {
+		t.Parallel()
 		ctx := context.Background()
 		pool := migrations.SetupPostgres(ctx, t)
 
@@ -95,12 +100,13 @@ func TestFindUserById(t *testing.T) {
 
 		found, err := userRepo.FindUserById(ctx, uuid.New())
 		assert.Nil(t, found)
-		assert.ErrorIs(t, err, ErrorDoesNotExist)
+		assert.ErrorIs(t, err, errs.ErrNotFound)
 	})
 }
 
 func TestFindUserByLogin(t *testing.T) {
 	t.Run("user found", func(t *testing.T) {
+		t.Parallel()
 		ctx := context.Background()
 		pool := migrations.SetupPostgres(ctx, t)
 
@@ -123,6 +129,7 @@ func TestFindUserByLogin(t *testing.T) {
 	})
 
 	t.Run("user not found, returns error", func(t *testing.T) {
+		t.Parallel()
 		ctx := context.Background()
 		pool := migrations.SetupPostgres(ctx, t)
 
@@ -130,12 +137,13 @@ func TestFindUserByLogin(t *testing.T) {
 
 		found, err := userRepo.FindUserByLogin(ctx, "missing_login")
 		assert.Nil(t, found)
-		assert.ErrorIs(t, err, ErrorDoesNotExist)
+		assert.ErrorIs(t, err, errs.ErrNotFound)
 	})
 }
 
 func TestFindUserByLoginOrEmail(t *testing.T) {
 	t.Run("found by login", func(t *testing.T) {
+		t.Parallel()
 		ctx := context.Background()
 		pool := migrations.SetupPostgres(ctx, t)
 
@@ -157,6 +165,7 @@ func TestFindUserByLoginOrEmail(t *testing.T) {
 	})
 
 	t.Run("found by email", func(t *testing.T) {
+		t.Parallel()
 		ctx := context.Background()
 		pool := migrations.SetupPostgres(ctx, t)
 
@@ -178,6 +187,7 @@ func TestFindUserByLoginOrEmail(t *testing.T) {
 	})
 
 	t.Run("not found, error", func(t *testing.T) {
+		t.Parallel()
 		ctx := context.Background()
 		pool := migrations.SetupPostgres(ctx, t)
 
@@ -185,12 +195,13 @@ func TestFindUserByLoginOrEmail(t *testing.T) {
 
 		found, err := userRepo.FindUserByLoginOrEmail(ctx, "missing_login", "missing@example.com")
 		assert.Nil(t, found)
-		assert.ErrorIs(t, err, ErrorDoesNotExist)
+		assert.ErrorIs(t, err, errs.ErrNotFound)
 	})
 }
 
 func TestGetSubs(t *testing.T) {
 	t.Run("returns non empty subs", func(t *testing.T) {
+		t.Parallel()
 		ctx := context.Background()
 		pool := migrations.SetupPostgres(ctx, t)
 
@@ -227,6 +238,7 @@ func TestGetSubs(t *testing.T) {
 	})
 
 	t.Run("returns empty subs", func(t *testing.T) {
+		t.Parallel()
 		ctx := context.Background()
 		pool := migrations.SetupPostgres(ctx, t)
 
@@ -248,6 +260,7 @@ func TestGetSubs(t *testing.T) {
 
 func TestSubscribeUserTo(t *testing.T) {
 	t.Run("successfully subscribed", func(t *testing.T) {
+		t.Parallel()
 		ctx := context.Background()
 		pool := migrations.SetupPostgres(ctx, t)
 
@@ -278,6 +291,7 @@ func TestSubscribeUserTo(t *testing.T) {
 	})
 
 	t.Run("already subscribed, returns error", func(t *testing.T) {
+		t.Parallel()
 		ctx := context.Background()
 		pool := migrations.SetupPostgres(ctx, t)
 
@@ -301,12 +315,13 @@ func TestSubscribeUserTo(t *testing.T) {
 		require.NoError(t, userRepo.SubscribeUserTo(ctx, sub.ID, author.ID))
 
 		err := userRepo.SubscribeUserTo(ctx, sub.ID, author.ID)
-		assert.ErrorIs(t, err, ErrorUniqueViolation)
+		assert.ErrorIs(t, err, errs.ErrAlreadyExists)
 	})
 }
 
 func TestUnsubscribeUserFrom(t *testing.T) {
 	t.Run("successfully unsubscribed", func(t *testing.T) {
+		t.Parallel()
 		ctx := context.Background()
 		pool := migrations.SetupPostgres(ctx, t)
 
@@ -339,6 +354,7 @@ func TestUnsubscribeUserFrom(t *testing.T) {
 	})
 
 	t.Run("is not subscribed, throws error", func(t *testing.T) {
+		t.Parallel()
 		ctx := context.Background()
 		pool := migrations.SetupPostgres(ctx, t)
 
@@ -360,6 +376,6 @@ func TestUnsubscribeUserFrom(t *testing.T) {
 		require.NoError(t, userRepo.AddUser(ctx, sub))
 
 		err := userRepo.UnsubscribeUserFrom(ctx, sub.ID, author.ID)
-		assert.ErrorIs(t, err, ErrorDoesNotExist)
+		assert.ErrorIs(t, err, errs.ErrNotFound)
 	})
 }

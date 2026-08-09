@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/KShekhurin/blog-go/internal/database"
+	"github.com/KShekhurin/blog-go/internal/errs"
 	"github.com/KShekhurin/blog-go/internal/repositories"
 	"github.com/KShekhurin/blog-go/internal/webModels"
 	"github.com/alexedwards/argon2id"
@@ -22,11 +23,10 @@ type UserService interface {
 }
 
 var (
-	ErrorUserExist         = errors.New("user already exists")
-	ErrorAlreadySubscribed = errors.New("user already subscribed")
-	ErrorIsNotSubscribed   = errors.New("user isn't subscribed")
-	ErrorBadPayload        = errors.New("bad payload")
-	ErrorInvalidPassword   = errors.New("invalid password")
+	ErrNotSubscribed     = errors.New("user is not subscribed")
+	ErrUserNotFound      = errors.New("user not found")
+	ErrUserAlreadyExists = errors.New("user already exists")
+	ErrAlreadySubscribed = errors.New("user already subscribed")
 )
 
 type userService struct {
@@ -52,16 +52,23 @@ func (s *userService) GetUserByUUID(ctx context.Context) {
 func (s *userService) GetUserByLoginOrEmail(ctx context.Context, login string, email string) (*database.User, error) {
 	usr, err := s.userRepo.FindUserByLoginOrEmail(ctx, login, email)
 
-	return usr, err
+	if err != nil {
+		if errors.Is(err, errs.ErrNotFound) {
+			return nil, ErrUserNotFound
+		}
+		return nil, err
+	}
+
+	return usr, nil
 }
 
 func (s *userService) CreateUser(ctx context.Context, userInfo *webModels.UserRegisterInfo) (*database.User, error) {
 	_, err := s.GetUserByLoginOrEmail(ctx, userInfo.Login, userInfo.Email)
 
 	if err == nil {
-		return nil, ErrorUserExist
+		return nil, fmt.Errorf("user with such credentials already exists: %w", ErrUserAlreadyExists)
 	}
-	if !errors.Is(err, repositories.ErrorDoesNotExist) {
+	if !errors.Is(err, ErrUserNotFound) {
 		return nil, fmt.Errorf("failed to check user existence: %w", err)
 	}
 
@@ -79,8 +86,8 @@ func (s *userService) CreateUser(ctx context.Context, userInfo *webModels.UserRe
 	err = s.userRepo.AddUser(ctx, newUser)
 
 	if err != nil {
-		if repositories.IsUniqueViolation(err) {
-			return nil, ErrorUserExist
+		if errors.Is(err, errs.ErrAlreadyExists) { //handles dirty write
+			return nil, fmt.Errorf("user with such credentials already exists: %w", ErrUserAlreadyExists)
 		}
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
@@ -92,8 +99,8 @@ func (s *userService) SubscribeTo(ctx context.Context, whoId uuid.UUID, toWhomId
 	err := s.userRepo.SubscribeUserTo(ctx, whoId, toWhomId)
 
 	if err != nil {
-		if repositories.IsUniqueViolation(err) {
-			return ErrorAlreadySubscribed
+		if errors.Is(err, errs.ErrAlreadyExists) {
+			return fmt.Errorf("user already subscribed: %w", ErrAlreadySubscribed)
 		}
 		return fmt.Errorf("failed to subscribe to user: %w", err)
 	}
@@ -105,9 +112,8 @@ func (s *userService) UnsubscribeFrom(ctx context.Context, whoId uuid.UUID, from
 	err := s.userRepo.UnsubscribeUserFrom(ctx, whoId, fromWhomId)
 
 	if err != nil {
-		//TODO: fix
-		if repositories.IsUniqueViolation(err) {
-			return ErrorIsNotSubscribed
+		if errors.Is(err, errs.ErrNotFound) {
+			return fmt.Errorf("user not subscribed: %w", ErrNotSubscribed)
 		}
 		return fmt.Errorf("failed to unsubscribe from user: %w", err)
 	}

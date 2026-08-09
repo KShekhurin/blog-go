@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/KShekhurin/blog-go/internal/errs"
 	"github.com/KShekhurin/blog-go/migrations"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
@@ -34,6 +35,7 @@ func subscriptionsKey(userId uuid.UUID) string {
 
 func TestSubscribeUserTo(t *testing.T) {
 	t.Run("adds follower and subscription successfully", func(t *testing.T) {
+		t.Parallel()
 		cacher, client, ctx := setupSubsCacherTest(t)
 
 		subId := uuid.New()
@@ -56,6 +58,7 @@ func TestSubscribeUserTo(t *testing.T) {
 	})
 
 	t.Run("keys did not exist: added them", func(t *testing.T) {
+		t.Parallel()
 		cacher, client, ctx := setupSubsCacherTest(t)
 
 		subId := uuid.New()
@@ -75,6 +78,7 @@ func TestSubscribeUserTo(t *testing.T) {
 
 func TestUnsubscribeUserFrom(t *testing.T) {
 	t.Run("successfully unsubscribed", func(t *testing.T) {
+		t.Parallel()
 		cacher, client, ctx := setupSubsCacherTest(t)
 
 		subId := uuid.New()
@@ -97,12 +101,14 @@ func TestUnsubscribeUserFrom(t *testing.T) {
 	})
 
 	t.Run("keys did not exist: no error", func(t *testing.T) {
+		t.Parallel()
 		cacher, _, ctx := setupSubsCacherTest(t)
 
 		require.NoError(t, cacher.UnsubscribeUserFrom(ctx, uuid.New(), uuid.New()))
 	})
 
 	t.Run("there was no subscription anyway: no error", func(t *testing.T) {
+		t.Parallel()
 		cacher, client, ctx := setupSubsCacherTest(t)
 
 		subId := uuid.New()
@@ -127,6 +133,7 @@ func TestUnsubscribeUserFrom(t *testing.T) {
 
 func TestGetSubs(t *testing.T) {
 	t.Run("got all subs", func(t *testing.T) {
+		t.Parallel()
 		cacher, client, ctx := setupSubsCacherTest(t)
 
 		userId := uuid.New()
@@ -138,12 +145,13 @@ func TestGetSubs(t *testing.T) {
 		}
 		require.NoError(t, client.SAdd(ctx, followersKey(userId), members...).Err())
 
-		got, err := cacher.GetSubs(ctx, userId)
+		got, err := cacher.GetFollows(ctx, userId)
 		require.NoError(t, err)
 		require.ElementsMatch(t, subs, got)
 	})
 
 	t.Run("key had subs but all were removed: throws ErrorDoesNotExist", func(t *testing.T) {
+		t.Parallel()
 		cacher, client, ctx := setupSubsCacherTest(t)
 
 		userId := uuid.New()
@@ -154,14 +162,15 @@ func TestGetSubs(t *testing.T) {
 		require.NoError(t, client.SAdd(ctx, followersKey(userId), subId.String()).Err())
 		require.NoError(t, client.SRem(ctx, followersKey(userId), subId.String()).Err())
 
-		_, err := cacher.GetSubs(ctx, userId)
-		require.ErrorIs(t, err, ErrorDoesNotExist)
+		_, err := cacher.GetFollows(ctx, userId)
+		require.ErrorIs(t, err, errs.ErrNotFound)
 	})
 
 	t.Run("key does not exist: throws ErrorDoesNotExist", func(t *testing.T) {
+		t.Parallel()
 		cacher, _, ctx := setupSubsCacherTest(t)
 
-		_, err := cacher.GetSubs(ctx, uuid.New())
-		require.ErrorIs(t, err, ErrorDoesNotExist)
+		_, err := cacher.GetFollows(ctx, uuid.New())
+		require.ErrorIs(t, err, errs.ErrNotFound)
 	})
 }

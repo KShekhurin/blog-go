@@ -1,10 +1,12 @@
 package middleware
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -27,6 +29,16 @@ type ValidationErrorMessage struct {
 type GeneralErrorMessage struct {
 	Error   string `json:"error" binding:"required"`
 	Message string `json:"message,omitempty"`
+}
+
+type HttpErrorMessage struct {
+	ErrorTag string
+	Message  string
+	Code     int
+}
+
+func (h *HttpErrorMessage) Error() string {
+	return fmt.Sprintf("Code: %d, Error: %s, Message: %s", h.Code, h.ErrorTag, h.Message)
 }
 
 func messageForTag(err validator.FieldError) string {
@@ -57,6 +69,7 @@ func ErrorMiddleware() gin.HandlerFunc {
 		var syntaxErr *json.SyntaxError
 		var unmarshalTypeErr *json.UnmarshalTypeError
 		var validationErrs validator.ValidationErrors
+		var httpError *HttpErrorMessage
 
 		switch {
 		case errors.As(err, &syntaxErr):
@@ -104,19 +117,26 @@ func ErrorMiddleware() gin.HandlerFunc {
 					Error:   "malformed_json",
 					Message: "unexpected end of json input",
 				})
-		case errors.Is(err, services.ErrorInvalidCredentials):
+		case errors.Is(err, services.ErrorUnauthorized):
 			c.JSON(http.StatusUnauthorized,
 				GeneralErrorMessage{
-					Error:   "invalid_credentials",
-					Message: "Invalid Credentials",
+					Error:   "unauthorized",
+					Message: "You are not authorized to perform this operation",
 				})
-		case errors.Is(err, services.ErrorUserExist):
-			c.JSON(http.StatusConflict,
-				GeneralErrorMessage{
-					Error:   "user_exists",
-					Message: "User already exists",
-				})
+		case errors.Is(err, context.DeadlineExceeded):
+			c.JSON(http.StatusGatewayTimeout, GeneralErrorMessage{
+				Error:   "request_timeout",
+				Message: "The request took too long to process",
+			})
+		case errors.Is(err, context.Canceled):
+			return
+		case errors.As(err, &httpError):
+			c.JSON(httpError.Code, GeneralErrorMessage{
+				Error:   httpError.ErrorTag,
+				Message: httpError.Message,
+			})
 		default:
+			slog.ErrorContext(c.Request.Context(), "unexpected error", slog.Any("error", err))
 			c.JSON(http.StatusInternalServerError,
 				GeneralErrorMessage{
 					Error:   "internal_server_error",

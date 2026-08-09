@@ -1,0 +1,18 @@
+name: Enforce Feature Branches
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+    branches:
+      - develop
+
+jobs:
+  check-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify Source Branch
+        if: ${{ !startsWith(github.head_ref, 'feature/') }}
+        run: |
+          echo "ERROR: Pull requests to 'develop' are only allowed from 'feature/*' branches."
+          echo "Your current source branch is '${{ github.head_ref }}'."
+          exit 1

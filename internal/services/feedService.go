@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/KShekhurin/blog-go/internal/cache"
@@ -29,8 +30,8 @@ type postAction struct {
 }
 
 type FeedService interface {
-	PushToFeeds(post *webModels.Post) error
-	RemoveFromFeeds(post *webModels.Post) error
+	PushToFeeds(post *webModels.Post)
+	RemoveFromFeeds(post *webModels.Post)
 	GetFromFeed(ctx context.Context, userId uuid.UUID, cursor *webModels.PostPaginationCursor, limit int) ([]webModels.Post, *webModels.PostPaginationCursor, error)
 	Close()
 }
@@ -106,18 +107,16 @@ func (s *feedService) pushToFeedHandle(ctx context.Context, post *webModels.Post
 	err = s.feedCacher.PushToFeeds(ctx, post.Id, post.CreatedAt, subs)
 }
 
-func (s *feedService) PushToFeeds(post *webModels.Post) error {
+func (s *feedService) PushToFeeds(post *webModels.Post) {
 	if !s.wp.TryPush(postAction{pushToFeed, post}) {
-		return ErrorFeedQueueIsFull
+		slog.Error("failed to push post to feed", slog.Any("err", ErrorFeedQueueIsFull))
 	}
-	return nil
 }
 
-func (s *feedService) RemoveFromFeeds(post *webModels.Post) error {
-	if !s.wp.TryPush(postAction{pushToFeed, post}) {
-		return ErrorFeedQueueIsFull
+func (s *feedService) RemoveFromFeeds(post *webModels.Post) {
+	if !s.wp.TryPush(postAction{removeFromFeed, post}) {
+		slog.Error("failed to push post to feed", slog.Any("err", ErrorFeedQueueIsFull))
 	}
-	return nil
 }
 
 func makeNewCursor(posts []webModels.Post) *webModels.PostPaginationCursor {

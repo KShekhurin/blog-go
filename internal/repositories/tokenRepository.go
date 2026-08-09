@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/KShekhurin/blog-go/internal/database"
+	"github.com/KShekhurin/blog-go/internal/errs"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -36,7 +37,7 @@ func (r tokenRepository) AddToken(ctx context.Context, jti uuid.UUID, userId uui
 
 	if err != nil {
 		if IsUniqueViolation(err) {
-			return fmt.Errorf("such refresh token already exists: %w", ErrorUniqueViolation)
+			return fmt.Errorf("token with such id already exists: %w", errs.ErrAlreadyExists)
 		}
 	}
 
