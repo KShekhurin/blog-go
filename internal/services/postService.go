@@ -120,6 +120,9 @@ func (s *postService) GetPostById(ctx context.Context, id uuid.UUID) (*webModels
 	post, err := s.postRepo.GetPostById(ctx, id)
 
 	if err != nil {
+		if errors.Is(err, errs.ErrNotFound) {
+			return nil, ErrorPostDoesNotExist
+		}
 		return nil, fmt.Errorf("could not get post by id %s: %w", id, err)
 	}
 

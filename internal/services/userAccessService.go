@@ -68,7 +68,7 @@ func (s *userService) CreateUser(ctx context.Context, userInfo *webModels.UserRe
 	if err == nil {
 		return nil, fmt.Errorf("user with such credentials already exists: %w", ErrUserAlreadyExists)
 	}
-	if !errors.Is(err, errs.ErrNotFound) {
+	if !errors.Is(err, ErrUserNotFound) {
 		return nil, fmt.Errorf("failed to check user existence: %w", err)
 	}
 
@@ -86,7 +86,7 @@ func (s *userService) CreateUser(ctx context.Context, userInfo *webModels.UserRe
 	err = s.userRepo.AddUser(ctx, newUser)
 
 	if err != nil {
-		if repositories.IsUniqueViolation(err) { //handles dirty write
+		if errors.Is(err, errs.ErrAlreadyExists) { //handles dirty write
 			return nil, fmt.Errorf("user with such credentials already exists: %w", ErrUserAlreadyExists)
 		}
 		return nil, fmt.Errorf("failed to create user: %w", err)
