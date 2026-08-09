@@ -16,6 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
 
 //	@title			Blog API
@@ -29,6 +30,7 @@ import (
 // @description				Type "Bearer" followed by a space and JWT token.
 func CreateRouter(databaseConnect *db.Database, cfg *config.Config) *gin.Engine {
 	router := gin.Default()
+	router.Use(otelgin.Middleware(""))
 
 	query := database.New(databaseConnect.Db)
 
