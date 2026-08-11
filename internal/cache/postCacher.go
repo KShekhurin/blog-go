@@ -56,7 +56,7 @@ func (c *postCacher) RemovePostById(ctx context.Context, postId uuid.UUID, remov
 		return err
 	}
 
-	if result != "[]" { //TODO: this is awful but JSONType is even worse
+	if result != "[]" { //this is awful but JSONType is even worse
 		return fmt.Errorf("could not delete post: %w", errs.ErrAlreadyDeleted)
 	}
 
