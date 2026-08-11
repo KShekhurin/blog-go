@@ -133,6 +133,11 @@ func makeNewCursor(posts []webModels.Post) *webModels.PostPaginationCursor {
 }
 
 func (s *feedService) GetFromFeed(ctx context.Context, userId uuid.UUID, cursor *webModels.PostPaginationCursor, limit int) ([]webModels.Post, *webModels.PostPaginationCursor, error) {
+	const op = "FeedService.GetFromFeed"
+
+	ctx, span := tracer.Start(ctx, op)
+	defer span.End()
+
 	postIds, err := s.feedCacher.GetFeedPostsIds(ctx, userId, cursor, limit)
 
 	if err != nil {
