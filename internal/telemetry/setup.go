@@ -3,7 +3,6 @@ package telemetry
 import (
 	"context"
 	"errors"
-	"fmt"
 	"slices"
 	"time"
 
@@ -25,8 +24,12 @@ import (
 
 func newGrpcConnection(cfg *config.Config) (*grpc.ClientConn, error) {
 	return grpc.NewClient(
-		fmt.Sprintf("%s:4317", cfg.OTLPGrpcAddress),
+		cfg.OTLPGrpcAddress,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithPerRPCCredentials(
+			uptraceCredentials{
+				dsn: cfg.UptraceDSN,
+			}),
 	)
 }
 
