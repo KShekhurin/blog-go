@@ -1,0 +1,69 @@
+service:
+  env: development
+  secret: 'secret'
+
+site:
+  url: "http://localhost:80"
+  ingest_url: "http://localhost:80?grpc=4317"
+
+redis_cache:
+  addrs:
+    1: uptrace-redis:6379
+  username: ""
+  password: ""
+  db: 0
+
+pg:
+  addr: 'uptrace-postgres:5432'
+  user: uptrace
+  password: uptrace
+  database: uptrace
+
+ch_cluster:
+  cluster: 'uptrace1'
+  shards:
+    - replicas:
+        - addr: 'uptrace-clickhouse:9000'
+          user: uptrace
+          password: uptrace
+          database: uptrace
+
+listen:
+  grpc:
+    addr: ':14317'
+  http:
+    addr: ':14318'
+
+seed_data:
+  users:
+    - key: admin_user
+      name: System Administrator
+      email: admin@admin.com
+      password: password
+      email_confirmed: true
+
+  orgs:
+    - key: main_org
+      name: My Company
+
+  org_users:
+    - key: admin_org_membership
+      org_key: main_org
+      user_key: admin_user
+      role: owner
+
+  projects:
+    - key: develop_project
+      name: Develop Environment
+      org_key: main_org
+
+  project_tokens:
+    - key: dev_token
+      project_key: develop_project
+      token: telemetry_secret
+
+  project_users:
+    - key: admin_project_access
+      project_key: develop_project
+      org_user_key: admin_org_membership
+      perm_level: admin  # admin, editor, viewer

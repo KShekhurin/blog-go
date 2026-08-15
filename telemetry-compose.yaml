@@ -1,0 +1,57 @@
+services:
+  uptrace-redis:
+    image: 'redis:8.8.1-alpine'
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 2s
+      retries: 30
+
+  uptrace-clickhouse:
+    image: "clickhouse/clickhouse-server:25.4-alpine"
+    restart: on-failure
+    environment:
+      CLICKHOUSE_USER: uptrace
+      CLICKHOUSE_PASSWORD: uptrace
+      CLICKHOUSE_DB: uptrace
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--user", "uptrace", "--password", "uptrace", "--query", "SELECT 1"]
+      interval: 3s
+      timeout: 2s
+      retries: 30
+
+  uptrace-postgres:
+    image: postgres:16-alpine
+    restart: on-failure
+    environment:
+      PGDATA: /var/lib/postgresql/data/pgdata
+      POSTGRES_USER: uptrace
+      POSTGRES_PASSWORD: uptrace
+      POSTGRES_DB: uptrace
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U uptrace -d uptrace"]
+      interval: 3s
+      timeout: 2s
+      retries: 30
+
+  uptrace:
+    image: "uptrace/uptrace:2.0.3"
+    restart: on-failure
+    ports:
+      #- '4317:14317'   # OTLP gRPC
+      - '80:14318'     # Web UI + OTLP HTTP
+    volumes:
+      - ./uptrace.yml:/etc/uptrace/config.yml
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:14318/health/status || exit 1"]
+      interval: 3s
+      timeout: 2s
+      retries: 30
+    depends_on:
+      uptrace-clickhouse:
+        condition: service_healthy
+      uptrace-postgres:
+        condition: service_healthy
+      uptrace-redis:
+        condition: service_healthy
