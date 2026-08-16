@@ -89,7 +89,7 @@ func (p *postEventsProcessor) processEvents(ctx context.Context, events []databa
 				return err
 			}
 		default:
-			return fmt.Errorf("unknown OutboxMessageType %d", event.MessageType)
+			return fmt.Errorf("unknown OutboxMessageType %s", event.MessageType)
 		}
 	}
 	return nil

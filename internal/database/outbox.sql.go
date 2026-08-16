@@ -31,7 +31,8 @@ func (q *Queries) AddToOutbox(ctx context.Context, arg AddToOutboxParams) error 
 
 const getOutboxEvents = `-- name: GetOutboxEvents :many
 SELECT id, message_type, payload, created_at, processed_at FROM outbox
-WHERE procesed_at IS NULL
+WHERE processed_at IS NULL
+ORDER BY created_at
 LIMIT $1
 `
 
@@ -63,7 +64,7 @@ func (q *Queries) GetOutboxEvents(ctx context.Context, limit int32) ([]Outbox, e
 
 const setEventsAsProcessed = `-- name: SetEventsAsProcessed :exec
 UPDATE outbox
-SET procesed_at = now()
+SET processed_at = now()
 WHERE id = ANY($1::uuid[])
 `
 
