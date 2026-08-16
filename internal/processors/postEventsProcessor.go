@@ -16,13 +16,18 @@ import (
 
 var ErrNothingToFetch = fmt.Errorf("nothing to fetch")
 
+type OutboxQueries interface {
+	GetOutboxEvents(ctx context.Context, limit int32) ([]database.Outbox, error)
+	SetEventsAsProcessed(ctx context.Context, ids []uuid.UUID) error
+}
+
 type PostEventsProcessor interface {
 	Start()
 	Close(ctx context.Context)
 }
 
 type postEventsProcessor struct {
-	q          *database.Queries
+	q          OutboxQueries
 	feedCacher cache.FeedCacher
 	userRepo   repositories.UserRepository
 
