@@ -35,6 +35,11 @@ func NewPostService(postRepo repositories.PostRepository) PostService {
 }
 
 func (s *postService) RemovePostById(ctx context.Context, postId uuid.UUID, userId uuid.UUID) (*webModels.Post, error) {
+	const op = "PostService.RemovePostById"
+
+	ctx, span := tracer.Start(ctx, op)
+	defer span.End()
+
 	post, err := s.postRepo.GetPostById(ctx, postId)
 	if err != nil {
 		if errors.Is(err, errs.ErrNotFound) {
@@ -50,7 +55,7 @@ func (s *postService) RemovePostById(ctx context.Context, postId uuid.UUID, user
 	deletedAt := time.Now()
 	post.DeletedAt = &deletedAt
 
-	err = s.postRepo.RemovePostById(ctx, postId, deletedAt)
+	err = s.postRepo.RemovePost(ctx, post, deletedAt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to remove post by id: %w", err)
 	}
@@ -90,6 +95,11 @@ func toPost(request *webModels.CreatePostRequest, authorId uuid.UUID) *webModels
 }
 
 func (s *postService) GetPostsByAuthorId(ctx context.Context, authorId uuid.UUID, cursor *webModels.PostPaginationCursor, limit int) ([]webModels.Post, *webModels.PostPaginationCursor, error) {
+	const op = "PostService.GetPostsByAuthorId"
+
+	ctx, span := tracer.Start(ctx, op)
+	defer span.End()
+
 	posts, cursor, err := s.postRepo.GetPostsByAuthorId(
 		ctx,
 		authorId,
@@ -105,6 +115,11 @@ func (s *postService) GetPostsByAuthorId(ctx context.Context, authorId uuid.UUID
 }
 
 func (s *postService) AddPost(ctx context.Context, request webModels.CreatePostRequest, authorId uuid.UUID) (*webModels.Post, error) {
+	const op = "PostService.AddPost"
+
+	ctx, span := tracer.Start(ctx, op)
+	defer span.End()
+
 	post := toPost(&request, authorId)
 
 	err := s.postRepo.AddPost(ctx, post)
@@ -117,9 +132,17 @@ func (s *postService) AddPost(ctx context.Context, request webModels.CreatePostR
 }
 
 func (s *postService) GetPostById(ctx context.Context, id uuid.UUID) (*webModels.Post, error) {
+	const op = "PostService.GetPostById"
+
+	ctx, span := tracer.Start(ctx, op)
+	defer span.End()
+
 	post, err := s.postRepo.GetPostById(ctx, id)
 
 	if err != nil {
+		if errors.Is(err, errs.ErrNotFound) {
+			return nil, ErrorPostDoesNotExist
+		}
 		return nil, fmt.Errorf("could not get post by id %s: %w", id, err)
 	}
 

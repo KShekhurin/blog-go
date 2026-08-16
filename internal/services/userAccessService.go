@@ -50,6 +50,11 @@ func (s *userService) GetUserByUUID(ctx context.Context) {
 }
 
 func (s *userService) GetUserByLoginOrEmail(ctx context.Context, login string, email string) (*database.User, error) {
+	const op = "UserService.GetUserByLoginOrEmail"
+
+	ctx, span := tracer.Start(ctx, op)
+	defer span.End()
+
 	usr, err := s.userRepo.FindUserByLoginOrEmail(ctx, login, email)
 
 	if err != nil {
@@ -63,12 +68,17 @@ func (s *userService) GetUserByLoginOrEmail(ctx context.Context, login string, e
 }
 
 func (s *userService) CreateUser(ctx context.Context, userInfo *webModels.UserRegisterInfo) (*database.User, error) {
+	const op = "UserService.CreateUser"
+
+	ctx, span := tracer.Start(ctx, op)
+	defer span.End()
+
 	_, err := s.GetUserByLoginOrEmail(ctx, userInfo.Login, userInfo.Email)
 
 	if err == nil {
 		return nil, fmt.Errorf("user with such credentials already exists: %w", ErrUserAlreadyExists)
 	}
-	if !errors.Is(err, errs.ErrNotFound) {
+	if !errors.Is(err, ErrUserNotFound) {
 		return nil, fmt.Errorf("failed to check user existence: %w", err)
 	}
 
@@ -86,7 +96,7 @@ func (s *userService) CreateUser(ctx context.Context, userInfo *webModels.UserRe
 	err = s.userRepo.AddUser(ctx, newUser)
 
 	if err != nil {
-		if repositories.IsUniqueViolation(err) { //handles dirty write
+		if errors.Is(err, errs.ErrAlreadyExists) { //handles dirty write
 			return nil, fmt.Errorf("user with such credentials already exists: %w", ErrUserAlreadyExists)
 		}
 		return nil, fmt.Errorf("failed to create user: %w", err)
@@ -96,6 +106,11 @@ func (s *userService) CreateUser(ctx context.Context, userInfo *webModels.UserRe
 }
 
 func (s *userService) SubscribeTo(ctx context.Context, whoId uuid.UUID, toWhomId uuid.UUID) error {
+	const op = "UserService.SubcribeTo"
+
+	ctx, span := tracer.Start(ctx, op)
+	defer span.End()
+
 	err := s.userRepo.SubscribeUserTo(ctx, whoId, toWhomId)
 
 	if err != nil {
@@ -109,6 +124,11 @@ func (s *userService) SubscribeTo(ctx context.Context, whoId uuid.UUID, toWhomId
 }
 
 func (s *userService) UnsubscribeFrom(ctx context.Context, whoId uuid.UUID, fromWhomId uuid.UUID) error {
+	const op = "UserService.UnsubscribeFrom"
+
+	ctx, span := tracer.Start(ctx, op)
+	defer span.End()
+
 	err := s.userRepo.UnsubscribeUserFrom(ctx, whoId, fromWhomId)
 
 	if err != nil {

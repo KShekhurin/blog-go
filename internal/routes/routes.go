@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"context"
 	"time"
 
 	"github.com/KShekhurin/blog-go/config"
@@ -10,12 +11,13 @@ import (
 	"github.com/KShekhurin/blog-go/internal/db"
 	"github.com/KShekhurin/blog-go/internal/handles"
 	"github.com/KShekhurin/blog-go/internal/middleware"
+	"github.com/KShekhurin/blog-go/internal/processors"
 	"github.com/KShekhurin/blog-go/internal/repositories"
 	"github.com/KShekhurin/blog-go/internal/services"
-	"github.com/KShekhurin/blog-go/workpool"
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
 
 //	@title			Blog API
@@ -27,8 +29,9 @@ import (
 // @in							header
 // @name						Authorization
 // @description				Type "Bearer" followed by a space and JWT token.
-func CreateRouter(databaseConnect *db.Database, cfg *config.Config) *gin.Engine {
+func CreateRouter(databaseConnect *db.Database, cfg *config.Config) (*gin.Engine, func(context.Context)) {
 	router := gin.Default()
+	router.Use(otelgin.Middleware(""))
 
 	query := database.New(databaseConnect.Db)
 
@@ -36,14 +39,15 @@ func CreateRouter(databaseConnect *db.Database, cfg *config.Config) *gin.Engine 
 		databaseConnect.Cache,
 	)
 
-	userRepo := repositories.NewUserCacheWrapper(
-		repositories.NewUserRepository(query),
+	userRepo := repositories.NewUserRepository(query)
+	userRepoWrapper := repositories.NewUserCacheWrapper(
+		userRepo,
 		cache.NewSubsCacher(
 			databaseConnect.Cache,
 		),
 	)
 
-	postRepo := repositories.NewPostCacheWrapper(
+	postRepoWrapper := repositories.NewPostCacheWrapper(
 		repositories.NewPostRepository(databaseConnect.Db),
 		cache.NewPostCacher(
 			databaseConnect.Cache,
@@ -54,21 +58,22 @@ func CreateRouter(databaseConnect *db.Database, cfg *config.Config) *gin.Engine 
 	)
 	tokenRepo := repositories.NewTokenRepository(query)
 
-	userService := services.NewUserService(userRepo, cfg.HashParams)
-	authService := services.NewAuthService(userRepo, tokenRepo, cfg.PrivateKey, cfg.SignMethod)
-	postService := services.NewPostService(postRepo)
+	userService := services.NewUserService(userRepoWrapper, cfg.HashParams)
+	authService := services.NewAuthService(userRepoWrapper, tokenRepo, cfg.PrivateKey, cfg.SignMethod)
+	postService := services.NewPostService(postRepoWrapper)
 	feedService := services.NewFeedService(
 		feedCacher,
 		userRepo,
-		postRepo,
-		&services.FeedParams{
-			Timeout: 30 * time.Second,
-			WpParams: &workpool.Params{
-				WorkersCount: 10,
-				QueueSize:    200,
-			},
-		},
+		postRepoWrapper,
 	)
+
+	postEventsProcessor := processors.NewPostEventsProcessor(
+		query,
+		feedCacher,
+		userRepo,
+		50,
+	)
+	postEventsProcessor.Start()
 
 	authHandle := handles.NewAuthHandler(userService, authService)
 	postHandle := handles.NewPostsHandle(postService, feedService)
@@ -108,5 +113,5 @@ func CreateRouter(databaseConnect *db.Database, cfg *config.Config) *gin.Engine 
 			userGroup.DELETE("/:author_id/subs", jwtMiddleware.Pass, userHandle.UnsubscribeFrom)
 		}
 	}
-	return router
+	return router, postEventsProcessor.Close
 }

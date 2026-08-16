@@ -1,3 +1,6 @@
+include:
+  - ./telemetry-compose.yaml
+
 services:
   web:
     build:
@@ -12,6 +15,8 @@ services:
       SERVER_PORT: 9090
       DATABASE_URL: postgres://root:password@db:5432/blog_db
       REDIS_URL: redis://default:password@redis:6379/0?protocol=2
+      OTLP_GRPC_ADDRESS: uptrace:14317
+      UPTRACE_DSN: "http://telemetry_secret@uptrace:14318?grpc=14317"
       JWT_SECRET: |
         -----BEGIN PRIVATE KEY-----
         MC4CAQAwBQYDK2VwBCIEIMQZ9a3SNmoJuuGTVwVPquqAj8IYXF79bQ3mSjq1ZJEN
@@ -20,7 +25,10 @@ services:
       migration:
         condition: service_completed_successfully
       redis:
-        condition: service_started
+        condition: service_healthy
+      uptrace:
+        condition: service_healthy
+
   migration:
     build:
       context: .
@@ -37,13 +45,20 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+
   redis:
-    image: redis:latest
+    image: redis:8.8.1-alpine
     command: redis-server /usr/local/etc/redis/redis.conf
     volumes:
       - ./redis.conf:/usr/local/etc/redis/redis.conf
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 3s
+      timeout: 2s
+      retries: 30
+
   db:
-    image: postgres:latest
+    image: postgres:16-alpine
     environment:
       POSTGRES_PASSWORD: password
       POSTGRES_USER: root

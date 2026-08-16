@@ -21,6 +21,8 @@ type Config struct {
 	RedisURL         string
 	JWTSecret        string
 	IsRelease        string
+	OTLPGrpcAddress  string
+	UptraceDSN       string
 
 	PrivateKey ed25519.PrivateKey
 	PublicKey  ed25519.PublicKey
@@ -69,6 +71,8 @@ func Load() (*Config, error) {
 	cfg.DatabaseURL = getEnv("DATABASE_URL", "")
 	cfg.RedisURL = getEnv("REDIS_URL", "")
 	cfg.JWTSecret = getEnv("JWT_SECRET", "")
+	cfg.OTLPGrpcAddress = getEnv("OTLP_GRPC_ADDRESS", "localhost")
+	cfg.UptraceDSN = getEnv("UPTRACE_DSN", "")
 	argon2Memory, err := strconv.ParseUint(getEnv("ARGON2_MEMORY", "65536"), 10, 32)
 
 	if err != nil {

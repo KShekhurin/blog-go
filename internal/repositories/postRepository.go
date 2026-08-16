@@ -62,7 +62,7 @@ func toAddPostAttachmentsParams(attachments []webModels.AttachedMedia) []databas
 
 type PostRepository interface {
 	AddPost(ctx context.Context, post *webModels.Post) error
-	RemovePostById(ctx context.Context, postId uuid.UUID, removeAt time.Time) error
+	RemovePost(ctx context.Context, post *webModels.Post, removeAt time.Time) error
 	GetPostById(ctx context.Context, id uuid.UUID) (*webModels.Post, error)
 	GetPostsWithIds(ctx context.Context, ids []uuid.UUID) ([]webModels.Post, error)
 	GetPostsByAuthorId(ctx context.Context, authorId uuid.UUID, cursor *webModels.PostPaginationCursor, limit int) ([]webModels.Post, *webModels.PostPaginationCursor, error)
@@ -80,18 +80,35 @@ func NewPostRepository(pool *pgxpool.Pool) PostRepository {
 	}
 }
 
-func (r *postRepository) RemovePostById(ctx context.Context, postId uuid.UUID, removeAt time.Time) error {
-	cnt, err := r.query.DeletePost(ctx, database.DeletePostParams{
-		ID: postId,
-		DeletedAt: pgtype.Timestamptz{
-			Time:  removeAt,
-			Valid: true,
-		},
-	})
+func (r *postRepository) RemovePost(ctx context.Context, post *webModels.Post, removeAt time.Time) error {
+	err := ExecTransaction(ctx, r.pool,
+		func(q *database.Queries) error {
+			cnt, err := r.query.DeletePost(ctx, database.DeletePostParams{
+				ID: post.Id,
+				DeletedAt: pgtype.Timestamptz{
+					Time:  removeAt,
+					Valid: true,
+				},
+			})
 
-	if cnt == 0 {
-		return &errs.NotFoundError{ID: postId.String(), Resource: "RemovePostById"}
-	}
+			if err != nil {
+				return err
+			}
+
+			if cnt == 0 {
+				return &errs.NotFoundError{ID: post.Id.String(), Resource: "RemovePostById"}
+			}
+
+			err = q.AddToOutbox(ctx, database.AddToOutboxParams{
+				MessageType: database.OutboxMessageTypePostdeleted,
+				Payload:     post,
+			})
+			if err != nil {
+				return err
+			}
+
+			return nil
+		})
 
 	return err
 }
@@ -112,6 +129,14 @@ func (r *postRepository) AddPost(ctx context.Context, post *webModels.Post) erro
 				if err != nil {
 					return err
 				}
+			}
+
+			err = q.AddToOutbox(ctx, database.AddToOutboxParams{
+				MessageType: database.OutboxMessageTypePostadded,
+				Payload:     post,
+			})
+			if err != nil {
+				return err
 			}
 
 			return nil

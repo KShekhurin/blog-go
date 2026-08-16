@@ -43,6 +43,11 @@ func (w *userCacheWrapper) AddUser(ctx context.Context, user *database.User) err
 }
 
 func (w *userCacheWrapper) SubscribeUserTo(ctx context.Context, subId uuid.UUID, authId uuid.UUID) error {
+	const op = "UserCacheWrapper.SubscribeUserTo"
+
+	ctx, span := tracer.Start(ctx, op)
+	defer span.End()
+
 	err := w.userRepo.SubscribeUserTo(ctx, subId, authId)
 	if err != nil {
 		return err
@@ -53,7 +58,11 @@ func (w *userCacheWrapper) SubscribeUserTo(ctx context.Context, subId uuid.UUID,
 	if err != nil {
 		//If existence check fails we should invalidate all list
 		//Cache no longer in sync with the db
-		slog.ErrorContext(ctx, "UnsubscribeUserFrom", slog.Any("err", err))
+
+		span.RecordError(err)
+		slog.ErrorContext(ctx, "failed to verify an existence of the followers cache",
+			slog.String("op", op),
+			slog.Any("err", err))
 
 		return nil
 	}
@@ -63,12 +72,16 @@ func (w *userCacheWrapper) SubscribeUserTo(ctx context.Context, subId uuid.UUID,
 		if err != nil {
 			//If existence check fails we should invalidate all list
 			//Cache no longer in sync with the db
-			slog.ErrorContext(ctx, "SubscribeUserTo", slog.Any("err", err))
+
+			span.RecordError(err)
+			slog.ErrorContext(ctx, "failed to add the follower to the list in the cache",
+				slog.String("op", op),
+				slog.Any("err", err))
 		}
 		return nil
 	}
 
-	res := w.getSubsSF.DoChan(authId.String(), w.tryToCacheSubs(authId))
+	res := w.getSubsSF.DoChan(authId.String(), w.tryToCacheSubs(ctx, authId))
 
 	select {
 	case r := <-res:
@@ -79,6 +92,11 @@ func (w *userCacheWrapper) SubscribeUserTo(ctx context.Context, subId uuid.UUID,
 }
 
 func (w *userCacheWrapper) UnsubscribeUserFrom(ctx context.Context, subId uuid.UUID, authId uuid.UUID) error {
+	const op = "UserCacheWrapper.UnsubscribeUserTo"
+
+	ctx, span := tracer.Start(ctx, op)
+	defer span.End()
+
 	err := w.userRepo.UnsubscribeUserFrom(ctx, subId, authId)
 
 	if err != nil {
@@ -90,7 +108,11 @@ func (w *userCacheWrapper) UnsubscribeUserFrom(ctx context.Context, subId uuid.U
 	if err != nil {
 		//If existence check fails we should invalidate all list
 		//Cache no longer in sync with the db
-		slog.ErrorContext(ctx, "UnsubscribeUserFrom", slog.Any("err", err))
+
+		span.RecordError(err)
+		slog.ErrorContext(ctx, "failed to verify an existence of the followers cache",
+			slog.String("op", op),
+			slog.Any("err", err))
 
 		return nil
 	}
@@ -100,12 +122,16 @@ func (w *userCacheWrapper) UnsubscribeUserFrom(ctx context.Context, subId uuid.U
 		if err != nil {
 			//If existence check fails we should invalidate all list
 			//Cache no longer in sync with the db
-			slog.ErrorContext(ctx, "UnsubscribeUserFrom", slog.Any("err", err))
+
+			span.RecordError(err)
+			slog.ErrorContext(ctx, "failed to remove the follower from the list in the cache",
+				slog.String("op", op),
+				slog.Any("err", err))
 		}
 		return nil
 	}
 
-	res := w.getSubsSF.DoChan(authId.String(), w.tryToCacheSubs(authId))
+	res := w.getSubsSF.DoChan(authId.String(), w.tryToCacheSubs(ctx, authId))
 
 	select {
 	case r := <-res:
@@ -115,9 +141,12 @@ func (w *userCacheWrapper) UnsubscribeUserFrom(ctx context.Context, subId uuid.U
 	}
 }
 
-func (w *userCacheWrapper) tryToCacheSubs(authId uuid.UUID) func() (any, error) {
+func (w *userCacheWrapper) tryToCacheSubs(ctx context.Context, authId uuid.UUID) func() (any, error) {
 	return func() (any, error) {
-		ctx := context.Background()
+		const op = "UserCacheWrapper.tryToCacheSubs"
+
+		ctx, span := tracer.Start(context.WithoutCancel(ctx), op)
+		defer span.End()
 
 		//Check again in case we visited after cache.GetFollows returned error
 		//but other goroutine had already refreshed cache and the channel had being closed
@@ -128,7 +157,10 @@ func (w *userCacheWrapper) tryToCacheSubs(authId uuid.UUID) func() (any, error) 
 
 		//a failed get should not invalidate a get from repo
 		if !errors.Is(err, errs.ErrNotFound) {
-			slog.ErrorContext(ctx, "tryToCacheSubs: cache get", slog.Any("err", err))
+			span.RecordError(err)
+			slog.ErrorContext(ctx, "failed to verify that there are follower is the cache",
+				slog.String("op", op),
+				slog.Any("err", err))
 		}
 
 		subs, err = w.userRepo.GetSubs(ctx, authId)
@@ -139,7 +171,10 @@ func (w *userCacheWrapper) tryToCacheSubs(authId uuid.UUID) func() (any, error) 
 		//Put data from repo to cache; a failed set doesn't invalidate the data
 		err = w.subsCache.SetFollows(ctx, authId, subs)
 		if err != nil {
-			slog.ErrorContext(ctx, "tryToCacheSubs: cache set", slog.Any("err", err))
+			span.RecordError(err)
+			slog.ErrorContext(ctx, "failed to set followers",
+				slog.String("op", op),
+				slog.Any("err", err))
 		}
 
 		return subs, nil
@@ -147,6 +182,11 @@ func (w *userCacheWrapper) tryToCacheSubs(authId uuid.UUID) func() (any, error) 
 }
 
 func (w *userCacheWrapper) GetSubs(ctx context.Context, userId uuid.UUID) ([]uuid.UUID, error) {
+	const op = "UserCacheWrapper.UnsubscribeUserTo"
+
+	ctx, span := tracer.Start(ctx, op)
+	defer span.End()
+
 	subs, err := w.subsCache.GetFollows(ctx, userId)
 
 	if err == nil {
@@ -154,11 +194,14 @@ func (w *userCacheWrapper) GetSubs(ctx context.Context, userId uuid.UUID) ([]uui
 	}
 
 	if !errors.Is(err, errs.ErrNotFound) {
-		//Cache is broken, fall back to the repo instead of returning empty data
-		slog.ErrorContext(ctx, "GetFollows: cache get", slog.Any("err", err))
+		//Cache is broken or is overloaded, fall back to the repo instead of returning empty data
+		span.RecordError(err)
+		slog.ErrorContext(ctx, "failed to get a follower list from the cache",
+			slog.String("op", op),
+			slog.Any("err", err))
 	}
 
-	res := w.getSubsSF.DoChan(userId.String(), w.tryToCacheSubs(userId))
+	res := w.getSubsSF.DoChan(userId.String(), w.tryToCacheSubs(ctx, userId))
 
 	select {
 	case r := <-res:

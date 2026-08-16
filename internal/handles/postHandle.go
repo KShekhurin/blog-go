@@ -74,7 +74,8 @@ func (h *PostsHandle) GetPostsByUserId(ctx *gin.Context) {
 		return
 	}
 
-	posts, newCursor, err := h.postService.GetPostsByAuthorId(ctx, userId, cursor, limit)
+	posts, newCursor, err := h.postService.GetPostsByAuthorId(
+		ctx.Request.Context(), userId, cursor, limit)
 	if err != nil {
 		ctx.Error(processPostServiceErrors(err))
 		return
@@ -115,14 +116,13 @@ func (h *PostsHandle) SendPost(ctx *gin.Context) {
 		return
 	}
 
-	post, err := h.postService.AddPost(ctx, postInput, userId)
+	post, err := h.postService.AddPost(
+		ctx.Request.Context(), postInput, userId)
+
 	if err != nil {
 		ctx.Error(processPostServiceErrors(err))
 		return
 	}
-
-	//Fire and forget
-	h.feedService.PushToFeeds(post)
 
 	ctx.JSON(http.StatusOK, post)
 }
@@ -157,14 +157,11 @@ func (h *PostsHandle) DeletePostById(ctx *gin.Context) {
 		return
 	}
 
-	deletedPost, err := h.postService.RemovePostById(ctx.Request.Context(), postId, userId)
+	_, err = h.postService.RemovePostById(ctx.Request.Context(), postId, userId)
 	if err != nil {
 		ctx.Error(processPostServiceErrors(err))
 		return
 	}
-
-	//Fire and forget.
-	h.feedService.RemoveFromFeeds(deletedPost)
 
 	ctx.JSON(http.StatusNoContent, gin.H{})
 }

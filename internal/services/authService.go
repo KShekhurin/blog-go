@@ -57,6 +57,11 @@ func NewAuthService(userRepo repositories.UserRepository, tokenRepo repositories
 }
 
 func (s *authService) AuthenticateUser(ctx context.Context, userInfo *webModels.UserLoginInfo) (*database.User, error) {
+	const op = "AuthService.AuthenticateUser"
+
+	ctx, span := tracer.Start(ctx, op)
+	defer span.End()
+
 	if userInfo.Login == "" && userInfo.Email == "" {
 
 		return nil, ErrBadPayload
@@ -82,6 +87,11 @@ func (s *authService) AuthenticateUser(ctx context.Context, userInfo *webModels.
 }
 
 func (s *authService) SignJWT(ctx context.Context, userId uuid.UUID) (*webModels.TokenPair, error) {
+	const op = "AuthService.SignJWT"
+
+	ctx, span := tracer.Start(ctx, op)
+	defer span.End()
+
 	iat := time.Now()
 
 	accessToken, err := jwt.NewWithClaims(
@@ -130,6 +140,11 @@ func (s *authService) SignJWT(ctx context.Context, userId uuid.UUID) (*webModels
 }
 
 func (s *authService) RotateJWT(ctx context.Context, jti uuid.UUID, userId uuid.UUID) (*webModels.TokenPair, error) {
+	const op = "AuthService.RotateJWT"
+
+	ctx, span := tracer.Start(ctx, op)
+	defer span.End()
+
 	isSuccess, err := s.tokenRepo.TryToDeleteToken(ctx, jti)
 	if err != nil {
 		return nil, fmt.Errorf("try to delete token failed: %w", err)
@@ -143,6 +158,11 @@ func (s *authService) RotateJWT(ctx context.Context, jti uuid.UUID, userId uuid.
 }
 
 func (s *authService) LogoutByRefresh(ctx context.Context, jti uuid.UUID) error {
+	const op = "AuthService.LogoutByRefresh"
+
+	ctx, span := tracer.Start(ctx, op)
+	defer span.End()
+
 	isSuccess, err := s.tokenRepo.TryToDeleteToken(ctx, jti)
 
 	if err != nil {
