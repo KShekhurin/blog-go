@@ -74,7 +74,8 @@ func (h *PostsHandle) GetPostsByUserId(ctx *gin.Context) {
 		return
 	}
 
-	posts, newCursor, err := h.postService.GetPostsByAuthorId(ctx, userId, cursor, limit)
+	posts, newCursor, err := h.postService.GetPostsByAuthorId(
+		ctx.Request.Context(), userId, cursor, limit)
 	if err != nil {
 		ctx.Error(processPostServiceErrors(err))
 		return
@@ -115,7 +116,9 @@ func (h *PostsHandle) SendPost(ctx *gin.Context) {
 		return
 	}
 
-	post, err := h.postService.AddPost(ctx, postInput, userId)
+	post, err := h.postService.AddPost(
+		ctx.Request.Context(), postInput, userId)
+
 	if err != nil {
 		ctx.Error(processPostServiceErrors(err))
 		return
