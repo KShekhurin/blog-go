@@ -1,12 +1,10 @@
 package repositories
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"log/slog"
-	"slices"
 	"time"
 
 	"github.com/KShekhurin/blog-go/internal/cache"
@@ -118,12 +116,19 @@ func (w *postCacheWrapper) GetPostsWithIds(ctx context.Context, ids []uuid.UUID)
 		}
 
 		cachedPosts = append(cachedPosts, missedPosts...)
-		cachedPosts = slices.SortedFunc(slices.Values(cachedPosts), func(a, b webModels.Post) int {
-			if a.CreatedAt.Unix() != b.CreatedAt.Unix() {
-				return cmp.Compare(a.CreatedAt.Unix(), b.CreatedAt.Unix())
-			}
-			return cmp.Compare(a.Id.String(), b.Id.String())
-		})
+	}
+
+	// Sort posts to match the order of the input ids
+	postById := make(map[uuid.UUID]webModels.Post, len(cachedPosts))
+	for _, post := range cachedPosts {
+		postById[post.Id] = post
+	}
+
+	orderedPosts := make([]webModels.Post, 0, len(ids))
+	for _, id := range ids {
+		if post, ok := postById[id]; ok {
+			orderedPosts = append(orderedPosts, post)
+		}
 	}
 
 	return cachedPosts, nil
