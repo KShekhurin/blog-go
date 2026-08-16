@@ -136,7 +136,7 @@ func main() {
 		log.Printf("[ERROR] %v", err)
 		shutdownErr = errors.Join(shutdownErr, err)
 	}
-	
+
 	closeProcessors(processorsShutdown)
 
 	if err := closeDb(database); err != nil {
