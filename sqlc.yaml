@@ -18,3 +18,8 @@ sql:
           - db_type: "uuid"
             nullable: true
             go_type: "github.com/google/uuid.NullUUID"
+          - column: "outbox.payload"
+            go_type:
+              import: "github.com/KShekhurin/blog-go/internal/webModels"
+              type: "Post"
+              pointer: true
