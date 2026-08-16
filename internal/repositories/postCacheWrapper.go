@@ -27,18 +27,18 @@ func NewPostCacheWrapper(postRepo PostRepository, postCache cache.PostCacher) Po
 	}
 }
 
-func (w *postCacheWrapper) RemovePostById(ctx context.Context, postId uuid.UUID, removeAt time.Time) error {
-	const op = "PostCacheWrapper.RemovePostById"
+func (w *postCacheWrapper) RemovePost(ctx context.Context, post *webModels.Post, removeAt time.Time) error {
+	const op = "PostCacheWrapper.RemovePost"
 
 	ctx, span := tracer.Start(ctx, op)
 	defer span.End()
 
-	err := w.postRepo.RemovePostById(ctx, postId, removeAt)
+	err := w.postRepo.RemovePost(ctx, post, removeAt)
 	if err != nil {
 		return fmt.Errorf("could not delete post: %w", err)
 	}
 
-	err = w.postCache.RemovePostById(ctx, postId, removeAt)
+	err = w.postCache.RemovePostById(ctx, post.Id, removeAt)
 	if err != nil && !errors.Is(err, errs.ErrNotFound) {
 		// If we cannot access the cache then something bad has happened
 		// Probably failure or cache is overloaded

@@ -2,6 +2,7 @@ package processors
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -13,18 +14,21 @@ import (
 	"github.com/google/uuid"
 )
 
+var ErrNothingToFetch = fmt.Errorf("nothing to fetch")
+
 type PostEventsProcessor interface {
 	Start()
 	Close(ctx context.Context)
 }
 
 type postEventsProcessor struct {
+	q          *database.Queries
 	feedCacher cache.FeedCacher
 	userRepo   repositories.UserRepository
 
-	limit int32
+	backoff Backoff
+	limit   int32
 
-	q                   *database.Queries
 	processFinishedChan chan struct{}
 	doneChan            chan struct{}
 }
@@ -37,6 +41,7 @@ func NewPostEventsProcessor(q *database.Queries, feedCacher cache.FeedCacher, us
 		feedCacher:          feedCacher,
 		userRepo:            userRepo,
 		limit:               limit,
+		backoff:             NewExponentialBackOff(2, time.Second, 30*time.Second),
 	}
 }
 
@@ -90,6 +95,29 @@ func (p *postEventsProcessor) processEvents(ctx context.Context, events []databa
 	return nil
 }
 
+func (p *postEventsProcessor) fetchAndProcess(ctx context.Context) error {
+	events, err := p.q.GetOutboxEvents(ctx, p.limit)
+	if err != nil {
+		return fmt.Errorf("fetch from the outbox failed: %w", err)
+	}
+
+	if len(events) == 0 {
+		return ErrNothingToFetch
+	}
+
+	err = p.processEvents(ctx, events)
+	if err != nil {
+		return fmt.Errorf("event processing failed: %w", err)
+	}
+
+	err = p.q.SetEventsAsProcessed(ctx, fromEventsToIds(events))
+	if err != nil {
+		return fmt.Errorf("set events as processed failed: %w", err)
+	}
+
+	return nil
+}
+
 func fromEventsToIds(events []database.Outbox) []uuid.UUID {
 	ids := make([]uuid.UUID, 0, len(events))
 
@@ -101,57 +129,30 @@ func fromEventsToIds(events []database.Outbox) []uuid.UUID {
 }
 
 func (p *postEventsProcessor) loop() {
-	const op = "PostEventsProcessor.FetchEvents"
+	const op = "PostEventsProcessor.ProcessLoop"
 	ctx := context.Background()
 
 	defer func() { close(p.processFinishedChan) }()
 
-	backoff := NewExponentialBackOff(2, time.Second, 30*time.Second)
 	timer := time.NewTimer(0)
 	defer timer.Stop()
 
 	for {
-		timer.Reset(backoff.NextDelay())
+		timer.Reset(p.backoff.NextDelay())
 
 		select {
 		case <-p.doneChan:
 			return
 		case <-timer.C:
-			events, err := p.q.GetOutboxEvents(ctx, p.limit)
+			err := p.fetchAndProcess(ctx)
 			if err != nil {
-				slog.Error("failed to fetch events from the outbox",
-					slog.String("op", op),
-					slog.Any("err", err))
-				backoff.AccumulateAdverse()
-				continue
+				if !errors.Is(err, ErrNothingToFetch) {
+					slog.Error("fetch & process cycle failed", slog.String("op", op), slog.Any("err", err))
+				}
+				p.backoff.AccumulateAdverse()
+			} else {
+				p.backoff.ClearAdverse()
 			}
-
-			if len(events) == 0 {
-				backoff.AccumulateAdverse()
-				continue
-			}
-
-			err = p.processEvents(ctx, events)
-			if err != nil {
-				slog.Error("failed to process events",
-					slog.String("op", op),
-					slog.Any("err", err))
-				backoff.AccumulateAdverse()
-				continue
-			}
-
-			err = p.q.SetEventsAsProcessed(
-				ctx,
-				fromEventsToIds(events))
-			if err != nil {
-				slog.Error("failed to set events as processed",
-					slog.String("op", op),
-					slog.Any("err", err))
-				backoff.AccumulateAdverse()
-				continue
-			}
-
-			backoff.ClearAdverse()
 		}
 	}
 }

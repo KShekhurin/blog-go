@@ -105,6 +105,42 @@ func extractAttachmentIDs(media []webModels.AttachedMedia) []uuid.UUID {
 	return ids
 }
 
+func requireOutboxEventCount(
+	t *testing.T,
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	expectedType database.OutboxMessageType,
+	expectedPostId uuid.UUID,
+	expectedCount int,
+) {
+	t.Helper()
+
+	var count int
+	err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM outbox
+		 WHERE message_type = $1
+		   AND payload->>'id' = $2`,
+		expectedType, expectedPostId.String(),
+	).Scan(&count)
+	require.NoError(t, err)
+	require.Equal(t, expectedCount, count,
+		"unexpected number of outbox events of type %s for post %s", expectedType, expectedPostId)
+}
+
+// requireOutboxEvent asserts that the outbox contains exactly one event of the
+// given type whose payload references the given post id.
+func requireOutboxEvent(
+	t *testing.T,
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	expectedType database.OutboxMessageType,
+	expectedPostId uuid.UUID,
+) {
+	t.Helper()
+
+	requireOutboxEventCount(t, ctx, pool, expectedType, expectedPostId, 1)
+}
+
 // --- AddPost ---
 
 func TestAddPost(t *testing.T) {
@@ -126,6 +162,8 @@ func TestAddPost(t *testing.T) {
 		require.Nil(t, stored.ReplyTo)
 		require.Nil(t, stored.DeletedAt)
 		require.Empty(t, stored.Attached)
+
+		requireOutboxEvent(t, ctx, pool, database.OutboxMessageTypePostadded, post.Id)
 	})
 
 	t.Run("successfully adds post with several attachments", func(t *testing.T) {
@@ -146,6 +184,8 @@ func TestAddPost(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, stored.Attached, len(post.Attached))
 		require.ElementsMatch(t, extractAttachmentIDs(post.Attached), extractAttachmentIDs(stored.Attached))
+
+		requireOutboxEvent(t, ctx, pool, database.OutboxMessageTypePostadded, post.Id)
 	})
 
 	t.Run("successfully adds post that is a reply", func(t *testing.T) {
@@ -165,6 +205,8 @@ func TestAddPost(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, stored.ReplyTo)
 		require.Equal(t, parent.Id, *stored.ReplyTo)
+
+		requireOutboxEvent(t, ctx, pool, database.OutboxMessageTypePostadded, reply.Id)
 	})
 
 	t.Run("returns error on unique violation", func(t *testing.T) {
@@ -181,12 +223,14 @@ func TestAddPost(t *testing.T) {
 		err := repo.AddPost(ctx, duplicate)
 		require.Error(t, err)
 		require.ErrorIs(t, err, errs.ErrAlreadyExists)
+
+		requireOutboxEvent(t, ctx, pool, database.OutboxMessageTypePostadded, post.Id)
 	})
 }
 
 // --- RemovePostById ---
 
-func TestRemovePostById(t *testing.T) {
+func TestRemovePost(t *testing.T) {
 	t.Run("successfully sets deleted_at", func(t *testing.T) {
 		t.Parallel()
 		repo, pool, ctx := setupPostRepoTest(t)
@@ -196,23 +240,28 @@ func TestRemovePostById(t *testing.T) {
 		require.NoError(t, repo.AddPost(ctx, post))
 
 		removeAt := utcNow()
-		require.NoError(t, repo.RemovePostById(ctx, post.Id, removeAt))
+		require.NoError(t, repo.RemovePost(ctx, post, removeAt))
 
 		stored, err := repo.GetPostById(ctx, post.Id)
 		require.NoError(t, err)
 		require.NotNil(t, stored.DeletedAt)
 		require.True(t, removeAt.Equal(*stored.DeletedAt),
 			"expected deleted_at %v, got %v", removeAt, *stored.DeletedAt)
+
+		requireOutboxEvent(t, ctx, pool, database.OutboxMessageTypePostdeleted, post.Id)
 	})
 
-	// NOTE: expects an error for a missing post; the current implementation
-	// silently succeeds (UPDATE affects 0 rows). Will fail until refactored.
 	t.Run("returns error when post does not exist", func(t *testing.T) {
-		repo, _, ctx := setupPostRepoTest(t)
+		t.Parallel()
+		repo, pool, ctx := setupPostRepoTest(t)
 
-		err := repo.RemovePostById(ctx, uuid.New(), utcNow())
+		missing := buildTestPost(uuid.New(), utcNow())
+
+		err := repo.RemovePost(ctx, missing, utcNow())
 		require.Error(t, err)
 		require.ErrorIs(t, err, errs.ErrNotFound)
+
+		requireOutboxEventCount(t, ctx, pool, database.OutboxMessageTypePostdeleted, missing.Id, 0)
 	})
 }
 
@@ -317,7 +366,7 @@ func TestGetPostsWithIds(t *testing.T) {
 
 		created := mustAddPosts(t, ctx, repo, authorId, 3)
 		deleted := created[1]
-		require.NoError(t, repo.RemovePostById(ctx, deleted.Id, utcNow()))
+		require.NoError(t, repo.RemovePost(ctx, deleted, utcNow()))
 
 		found, err := repo.GetPostsWithIds(ctx, []uuid.UUID{created[0].Id, deleted.Id, created[2].Id})
 		require.NoError(t, err)
@@ -381,7 +430,7 @@ func TestGetPostsByAuthorId(t *testing.T) {
 
 		created := mustAddPosts(t, ctx, repo, authorId, 4)
 		deleted := created[2]
-		require.NoError(t, repo.RemovePostById(ctx, deleted.Id, utcNow()))
+		require.NoError(t, repo.RemovePost(ctx, deleted, utcNow()))
 
 		page, cursor, err := repo.GetPostsByAuthorId(ctx, authorId, nil, 10)
 		require.NoError(t, err)

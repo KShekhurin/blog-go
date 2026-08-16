@@ -100,7 +100,7 @@ func (r *postRepository) RemovePost(ctx context.Context, post *webModels.Post, r
 			}
 
 			err = q.AddToOutbox(ctx, database.AddToOutboxParams{
-				MessageType: database.OutboxMessageTypePostadded,
+				MessageType: database.OutboxMessageTypePostdeleted,
 				Payload:     post,
 			})
 			if err != nil {
