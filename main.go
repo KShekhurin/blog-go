@@ -70,6 +70,15 @@ func closeOTel(shutdown func(ctx context.Context) error) error {
 	return nil
 }
 
+func closeProcessors(shutdown func(ctx context.Context)) {
+	log.Println("[INFO] closing processors...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	shutdown(ctx)
+}
+
 func closeDb(database *db.Database) error {
 	log.Println("[INFO] closing database..")
 
@@ -105,7 +114,7 @@ func main() {
 
 	webModels.RegisterValidators()
 
-	r := routes.CreateRouter(database, cfg)
+	r, processorsShutdown := routes.CreateRouter(database, cfg)
 	srv, srvErr := launchServer(cfg, r)
 
 	var shutdownErr error
@@ -127,6 +136,8 @@ func main() {
 		log.Printf("[ERROR] %v", err)
 		shutdownErr = errors.Join(shutdownErr, err)
 	}
+
+	closeProcessors(processorsShutdown)
 
 	if err := closeDb(database); err != nil {
 		log.Printf("[ERROR] %v", err)

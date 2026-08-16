@@ -55,7 +55,7 @@ func (s *postService) RemovePostById(ctx context.Context, postId uuid.UUID, user
 	deletedAt := time.Now()
 	post.DeletedAt = &deletedAt
 
-	err = s.postRepo.RemovePostById(ctx, postId, deletedAt)
+	err = s.postRepo.RemovePost(ctx, post, deletedAt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to remove post by id: %w", err)
 	}

@@ -124,9 +124,6 @@ func (h *PostsHandle) SendPost(ctx *gin.Context) {
 		return
 	}
 
-	//Fire and forget
-	h.feedService.PushToFeeds(post)
-
 	ctx.JSON(http.StatusOK, post)
 }
 
@@ -160,14 +157,11 @@ func (h *PostsHandle) DeletePostById(ctx *gin.Context) {
 		return
 	}
 
-	deletedPost, err := h.postService.RemovePostById(ctx.Request.Context(), postId, userId)
+	_, err = h.postService.RemovePostById(ctx.Request.Context(), postId, userId)
 	if err != nil {
 		ctx.Error(processPostServiceErrors(err))
 		return
 	}
-
-	//Fire and forget.
-	h.feedService.RemoveFromFeeds(deletedPost)
 
 	ctx.JSON(http.StatusNoContent, gin.H{})
 }

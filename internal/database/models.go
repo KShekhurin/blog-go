@@ -8,6 +8,7 @@ import (
 	"database/sql/driver"
 	"fmt"
 
+	"github.com/KShekhurin/blog-go/internal/webModels"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -56,10 +57,60 @@ func (ns NullMediaType) Value() (driver.Value, error) {
 	return string(ns.MediaType), nil
 }
 
+type OutboxMessageType string
+
+const (
+	OutboxMessageTypePostadded   OutboxMessageType = "post.added"
+	OutboxMessageTypePostdeleted OutboxMessageType = "post.deleted"
+)
+
+func (e *OutboxMessageType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = OutboxMessageType(s)
+	case string:
+		*e = OutboxMessageType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for OutboxMessageType: %T", src)
+	}
+	return nil
+}
+
+type NullOutboxMessageType struct {
+	OutboxMessageType OutboxMessageType
+	Valid             bool // Valid is true if OutboxMessageType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullOutboxMessageType) Scan(value interface{}) error {
+	if value == nil {
+		ns.OutboxMessageType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.OutboxMessageType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullOutboxMessageType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.OutboxMessageType), nil
+}
+
 type AllowedRefreshToken struct {
 	Jti       uuid.UUID
 	UserID    uuid.UUID
 	ExpiresAt pgtype.Timestamptz
+}
+
+type Outbox struct {
+	ID          uuid.UUID
+	MessageType OutboxMessageType
+	Payload     *webModels.Post
+	CreatedAt   pgtype.Timestamptz
+	ProcessedAt pgtype.Timestamptz
 }
 
 type Post struct {

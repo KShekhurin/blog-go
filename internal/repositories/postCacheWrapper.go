@@ -1,12 +1,10 @@
 package repositories
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"log/slog"
-	"slices"
 	"time"
 
 	"github.com/KShekhurin/blog-go/internal/cache"
@@ -27,18 +25,18 @@ func NewPostCacheWrapper(postRepo PostRepository, postCache cache.PostCacher) Po
 	}
 }
 
-func (w *postCacheWrapper) RemovePostById(ctx context.Context, postId uuid.UUID, removeAt time.Time) error {
-	const op = "PostCacheWrapper.RemovePostById"
+func (w *postCacheWrapper) RemovePost(ctx context.Context, post *webModels.Post, removeAt time.Time) error {
+	const op = "PostCacheWrapper.RemovePost"
 
 	ctx, span := tracer.Start(ctx, op)
 	defer span.End()
 
-	err := w.postRepo.RemovePostById(ctx, postId, removeAt)
+	err := w.postRepo.RemovePost(ctx, post, removeAt)
 	if err != nil {
 		return fmt.Errorf("could not delete post: %w", err)
 	}
 
-	err = w.postCache.RemovePostById(ctx, postId, removeAt)
+	err = w.postCache.RemovePostById(ctx, post.Id, removeAt)
 	if err != nil && !errors.Is(err, errs.ErrNotFound) {
 		// If we cannot access the cache then something bad has happened
 		// Probably failure or cache is overloaded
@@ -118,12 +116,19 @@ func (w *postCacheWrapper) GetPostsWithIds(ctx context.Context, ids []uuid.UUID)
 		}
 
 		cachedPosts = append(cachedPosts, missedPosts...)
-		cachedPosts = slices.SortedFunc(slices.Values(cachedPosts), func(a, b webModels.Post) int {
-			if a.CreatedAt.Unix() != b.CreatedAt.Unix() {
-				return cmp.Compare(a.CreatedAt.Unix(), b.CreatedAt.Unix())
-			}
-			return cmp.Compare(a.Id.String(), b.Id.String())
-		})
+	}
+
+	// Sort posts to match the order of the input ids
+	postById := make(map[uuid.UUID]webModels.Post, len(cachedPosts))
+	for _, post := range cachedPosts {
+		postById[post.Id] = post
+	}
+
+	orderedPosts := make([]webModels.Post, 0, len(ids))
+	for _, id := range ids {
+		if post, ok := postById[id]; ok {
+			orderedPosts = append(orderedPosts, post)
+		}
 	}
 
 	return cachedPosts, nil
