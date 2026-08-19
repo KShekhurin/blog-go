@@ -9,18 +9,15 @@ services:
       target: web
     restart: on-failure
     ports:
-      - "9090:9090"
+      - "${WEB_PORT:-9090}:9090"
     environment:
       IS_RELEASE: 1
       SERVER_PORT: 9090
-      DATABASE_URL: postgres://root:password@db:5432/blog_db
-      REDIS_URL: redis://default:password@redis:6379/0?protocol=2
+      DATABASE_URL: postgres://${POSTGRES_USER:-root}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-blog_db}
+      REDIS_URL: redis://default:${REDIS_PASSWORD:-password}@redis:6379/0?protocol=2
       OTLP_GRPC_ADDRESS: uptrace:14317
-      UPTRACE_DSN: "http://telemetry_secret@uptrace:14318?grpc=14317"
-      JWT_SECRET: |
-        -----BEGIN PRIVATE KEY-----
-        MC4CAQAwBQYDK2VwBCIEIMQZ9a3SNmoJuuGTVwVPquqAj8IYXF79bQ3mSjq1ZJEN
-        -----END PRIVATE KEY-----
+      UPTRACE_DSN: ${UPTRACE_DSN:-http://telemetry_secret@uptrace:14318?grpc=14317}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env}
     depends_on:
       migration:
         condition: service_completed_successfully
@@ -38,7 +35,7 @@ services:
     restart: "no"
     environment:
       GOOSE_DRIVER: postgres
-      GOOSE_DBSTRING: postgres://root:password@db:5432/blog_db
+      GOOSE_DBSTRING: postgres://${POSTGRES_USER:-root}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-blog_db}
       GOOSE_MIGRATION_DIR: ./migrations
     depends_on:
       db:
@@ -48,11 +45,11 @@ services:
 
   redis:
     image: redis:8.8.1-alpine
-    command: redis-server /usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf --requirepass "${REDIS_PASSWORD:-password}"
     volumes:
       - ./redis.conf:/usr/local/etc/redis/redis.conf
     healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
+      test: [ "CMD-SHELL", "redis-cli -a '${REDIS_PASSWORD:-password}' ping | grep -q PONG" ]
       interval: 3s
       timeout: 2s
       retries: 30
@@ -60,11 +57,11 @@ services:
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_PASSWORD: password
-      POSTGRES_USER: root
-      POSTGRES_DB: blog_db
+      POSTGRES_USER: ${POSTGRES_USER:-root}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_DB: ${POSTGRES_DB:-blog_db}
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U root -d blog_db" ]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-root} -d ${POSTGRES_DB:-blog_db}" ]
       interval: 5s
       timeout: 5s
       retries: 5
